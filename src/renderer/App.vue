@@ -49,7 +49,7 @@ import { useRoute } from 'vue-router'
 
 const localMusicStore = useLocalMusicStore()
 const { localTracks } = storeToRefs(localMusicStore)
-const { fetchLocalMusic, deleteLocalTracks } = localMusicStore
+const { deleteLocalTracks } = localMusicStore
 
 const playerStore = usePlayerStore()
 const { enabled } = storeToRefs(playerStore)
@@ -83,7 +83,6 @@ const fetchData = () => {
 }
 const fetchLocalData = () => {
   window.mainApi.send('clearDeletedMusic')
-  fetchLocalMusic()
   scanLocalMusic()
 }
 
@@ -224,6 +223,10 @@ onMounted(async () => {
       extensionCheckResult.value = result
     })
   }
+  document.documentElement.style.setProperty(
+    '--color-primary',
+    theme.value.colors.find((c) => c.selected)?.color || 'rgba(51, 94, 234, 1)'
+  )
   fetchData()
   fetchLocalData()
   handleChanelEvent()
