@@ -45,6 +45,7 @@ import { useSettingsStore } from './store/settings'
 import { useNormalStateStore } from './store/state'
 import { storeToRefs } from 'pinia'
 import Utils from './utils'
+import { initAmuseQueryChannel } from './utils/amuse'
 import { useRoute } from 'vue-router'
 
 const localMusicStore = useLocalMusicStore()
@@ -224,6 +225,8 @@ onMounted(async () => {
   fetchData()
   fetchLocalData()
   handleChanelEvent()
+
+  initAmuseQueryChannel()
 })
 </script>
 

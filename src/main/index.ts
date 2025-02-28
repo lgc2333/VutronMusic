@@ -30,7 +30,11 @@ import {
 } from './utils/utils'
 import { CacheAPIs } from './utils/CacheApis'
 import { registerGlobalShortcuts } from './globalShortcut'
-// import { Readable } from 'stream'
+import {
+  AmuseServerManager,
+  MainWindowAmuseInfoGetter,
+  notImplementedInfoGetter
+} from './amuseServer'
 
 const cacheTracks = new Map<string, any>()
 
@@ -89,6 +93,7 @@ class BackGround {
   menu: Menu | null = null
   mpris: MprisImpl | null = null
   fastifyApp: FastifyInstance | null = null
+  amuseServer: AmuseServerManager | null = null
   willQuitApp: boolean = !Constants.IS_MAC
   checkInterval: any = null
   lastKnownMousePosition = { x: 0, y: 0 }
@@ -117,6 +122,9 @@ class BackGround {
 
     // create fastify app
     this.fastifyApp = await this.createFastifyApp()
+
+    this.amuseServer = new AmuseServerManager(notImplementedInfoGetter)
+    this.amuseServer.restart()
 
     this.handleAppEvents()
   }
@@ -209,6 +217,10 @@ class BackGround {
       this.win.webContents.openDevTools()
     } else {
       await this.win.loadURL(Constants.APP_INDEX_URL_PROD)
+    }
+
+    if (this.amuseServer) {
+      this.amuseServer.infoGetter = new MainWindowAmuseInfoGetter(this.win)
     }
   }
 
