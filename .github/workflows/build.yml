@@ -18,9 +18,8 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-latest, windows-latest] #, ubuntu-latest]
+        arch: [x64]
         include:
-          - os: macos-latest
-            arch: x64
           - os: macos-latest
             arch: arm64
 
@@ -51,7 +50,6 @@ jobs:
         run: yarn
 
       - name: Rebuild native dependencies for current architecture
-        if: matrix.os == 'macos-latest'
         run: |
           npm rebuild --target_arch=${{ matrix.arch }}
           ./node_modules/.bin/electron-rebuild --arch=${{ matrix.arch }}
