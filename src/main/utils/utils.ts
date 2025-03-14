@@ -627,3 +627,11 @@ export const getStreamLyric = async (id: string) => {
     return lyrics
   }
 }
+
+export const randomString = (pattern: string, length: number) => {
+  return Array.from({ length }, () => pattern[Math.floor(Math.random() * pattern.length)]).join('')
+}
+
+export const randomAlNum = (length: number) => {
+  return randomString('0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ', length)
+}

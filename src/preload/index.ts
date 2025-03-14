@@ -2,6 +2,9 @@ import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron'
 
 // Whitelist of valid channels used for IPC communication (Send message from Renderer to Main)
 const mainAvailChannels: string[] = [
+  // amuse
+  'queryAmuseInfoReturn',
+  // original
   'msgRequestGetVersion',
   'msgOpenExternalLink',
   'msgOpenFile',
@@ -44,6 +47,9 @@ const mainAvailChannels: string[] = [
   'get-stream-account'
 ]
 const rendererAvailChannels: string[] = [
+  // amuse
+  'queryAmuseInfo',
+  // original
   'msgHandleScanLocalMusic',
   'scanLocalMusicDone',
   'handleTrayClick',
