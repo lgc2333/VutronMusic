@@ -17,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest, ubuntu-latest]
+        os: [windows-latest, macos-latest]
         arch: [x64]
         include:
           - os: macos-latest
@@ -66,8 +66,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.github_token }}
           ARCH: ${{ matrix.arch }}
-        run: |
-          yarn build --${{ matrix.arch }} || yarn build --${{ matrix.arch }}
+          EXTRA_PLATFORM_ARG: ${{ matrix.os == 'macos-latest' && matrix.arch == 'x64' && ' -ml' || '' }}
+        run: >
+          yarn build --${{ matrix.arch }}${{ env.EXTRA_PLATFORM_ARG }}
+          || yarn build --${{ matrix.arch }}${{ env.EXTRA_PLATFORM_ARG }}
 
       - uses: actions/upload-artifact@v4
         with:
