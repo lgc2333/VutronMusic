@@ -66,11 +66,14 @@ jobs:
 
       - name: Build/release Electron app
         shell: bash
+        if: matrix.os != 'windows-latest'
         env:
           GH_TOKEN: ${{ secrets.github_token }}
           ARCH: ${{ matrix.arch }}
-        run: |
-          yarn build --${{ matrix.arch }} || yarn build --${{ matrix.arch }}
+          PLATFORM_FLAG: ${{ (matrix.os == 'windows-latest' && '-w') || '-ml' }}
+        run: >
+          yarn build --${{ matrix.arch }} ${{ env.PLATFORM_FLAG }}
+          || yarn build --${{ matrix.arch }} ${{ env.PLATFORM_FLAG }}
 
       - uses: actions/upload-artifact@v4
         with:
