@@ -48,7 +48,7 @@ jobs:
 
       - name: Install Chromium sandbox (Linux)
         if: matrix.os == 'ubuntu-latest'
-        run: sudo apt-get install -y chromium-sandbox
+        run: sudo apt-get install -y chromium-browser
 
       - name: Set permissions for sandbox (Linux)
         if: matrix.os == 'ubuntu-latest'
