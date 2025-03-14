@@ -17,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest]
+        os: [windows-latest, macos-latest, ubuntu-latest]
         arch: [x64]
         include:
           - os: macos-latest
@@ -46,15 +46,15 @@ jobs:
         if: matrix.os == 'macos-latest'
         run: brew install rpm
 
-      # - name: Install Chromium sandbox (Linux)
-      #   if: matrix.os == 'ubuntu-latest'
-      #   run: sudo apt-get install -y chromium-sandbox
+      - name: Install Chromium sandbox (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get install -y chromium-sandbox
 
-      # - name: Set permissions for sandbox (Linux)
-      #   if: matrix.os == 'ubuntu-latest'
-      #   run: |
-      #     sudo chown root:root ./node_modules/electron/dist/chrome-sandbox
-      #     sudo chmod 4755 ./node_modules/electron/dist/chrome-sandbox
+      - name: Set permissions for sandbox (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo chown root:root ./node_modules/electron/dist/chrome-sandbox
+          sudo chmod 4755 ./node_modules/electron/dist/chrome-sandbox
 
       - name: Install deps
         run: yarn
@@ -66,14 +66,11 @@ jobs:
 
       - name: Build/release Electron app
         shell: bash
-        if: matrix.os != 'windows-latest'
         env:
           GH_TOKEN: ${{ secrets.github_token }}
           ARCH: ${{ matrix.arch }}
-          PLATFORM_FLAG: ${{ (matrix.os == 'windows-latest' && '-w') || '-ml' }}
-        run: >
-          yarn build --${{ matrix.arch }} ${{ env.PLATFORM_FLAG }}
-          || yarn build --${{ matrix.arch }} ${{ env.PLATFORM_FLAG }}
+        run: |
+          yarn build --${{ matrix.arch }} || yarn build --${{ matrix.arch }}
 
       - uses: actions/upload-artifact@v4
         with:
