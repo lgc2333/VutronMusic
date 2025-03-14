@@ -39,8 +39,11 @@ jobs:
 
       - name: Install build essentials (macOS)
         if: matrix.os == 'macos-latest'
+        run: brew install rpm
+
+      - name: Install build essentials (macOS & Linux)
+        if: matrix.os != 'windows-latest'
         run: |
-          brew install rpm
           python -m pip install --upgrade pip
           pip install setuptools
           npm install -g node-gyp
