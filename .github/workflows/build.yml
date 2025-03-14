@@ -12,16 +12,16 @@ permissions: write-all
 
 jobs:
   Release:
-    runs-on: ${{ matrix.os }}
-
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest]
+        os: [windows-latest, macos-latest, ubuntu-latest]
         arch: [x64]
         include:
           - os: macos-latest
             arch: arm64
+
+    runs-on: ${{ matrix.os }}
 
     steps:
       - name: Check out Git repository
@@ -59,48 +59,52 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.github_token }}
           ARCH: ${{ matrix.arch }}
-          EXTRA_PLATFORM_ARG: ${{ matrix.os == 'macos-latest' && matrix.arch == 'x64' && ' -ml' || '' }}
-        run: >
-          yarn build --${{ matrix.arch }}${{ env.EXTRA_PLATFORM_ARG }}
-          || yarn build --${{ matrix.arch }}${{ env.EXTRA_PLATFORM_ARG }}
+        run: yarn build --${{ matrix.arch }} || yarn build --${{ matrix.arch }}
 
       - uses: actions/upload-artifact@v4
+        if: matrix.os == 'windows-latest'
         with:
           name: VutronMusic-win-installer-${{ matrix.arch }}
           path: release/*/VutronMusic*_${{ matrix.arch }}.exe
           if-no-files-found: ignore
 
       - uses: actions/upload-artifact@v4
+        if: matrix.os == 'windows-latest'
         with:
           name: VutronMusic-win-portable-${{ matrix.arch }}
           path: release/*/VutronMusic*_${{ matrix.arch }} Portable.exe
           if-no-files-found: ignore
 
       - uses: actions/upload-artifact@v4
+        if: matrix.os == 'macos-latest'
         with:
           name: VutronMusic-mac-${{ matrix.arch }}
           path: release/*/VutronMusic*_${{ matrix.arch }}.dmg
           if-no-files-found: ignore
 
       - uses: actions/upload-artifact@v4
+        if: matrix.os == 'ubuntu-latest'
         with:
           name: VutronMusic-linux-snap-${{ matrix.arch }}
           path: release/*/VutronMusic*.snap
           if-no-files-found: ignore
 
       - uses: actions/upload-artifact@v4
+        if: matrix.os == 'ubuntu-latest'
         with:
           name: VutronMusic-linux-AppImage-${{ matrix.arch }}
           path: release/*/VutronMusic*.AppImage
           if-no-files-found: ignore
 
       - uses: actions/upload-artifact@v4
+        if: matrix.os == 'ubuntu-latest'
         with:
           name: VutronMusic-linux-deb-${{ matrix.arch }}
           path: release/*/VutronMusic*.deb
           if-no-files-found: ignore
 
       - uses: actions/upload-artifact@v4
+        if: matrix.os == 'ubuntu-latest'
         with:
           name: VutronMusic-linux-rpm-${{ matrix.arch }}
           path: release/*/VutronMusic*.rpm
