@@ -22,12 +22,14 @@ jobs:
             arch: arm64
 
     runs-on: ${{ matrix.os }}
+    env:
+      XFVB_PFX: ${{ matrix.os == 'linux-latest' && 'xvfb-run --auto-servernum -- ' || '' }}
 
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v4
         with:
-          submodules: "recursive"
+          submodules: 'recursive'
 
       - name: Install Node.js, NPM and Yarn
         uses: actions/setup-node@v4
@@ -35,24 +37,26 @@ jobs:
           node-version: 22
           cache: 'yarn'
 
-      - name: Setup node-gyp requirements (macOS)
+      - name: Install build essentials (macOS)
         if: matrix.os == 'macos-latest'
         run: |
+          brew install rpm
           python -m pip install --upgrade pip
           pip install setuptools
           npm install -g node-gyp
 
-      - name: Install build essentials (macOS)
-        if: matrix.os == 'macos-latest'
-        run: brew install rpm
+      - name: Install build essentials (Linux)
+        if: matrix.os == 'linux-latest'
+        run: sudo apt install -y xfvb-run
 
       - name: Install deps
-        run: yarn
+        if: matrix.os != 'linux-latest'
+        run: ${{ env.XFVB_PFX }}yarn
 
       - name: Rebuild native dependencies for current architecture
         run: |
-          npm rebuild --target_arch=${{ matrix.arch }}
-          ./node_modules/.bin/electron-rebuild --arch=${{ matrix.arch }}
+          ${{ env.XFVB_PFX }} npm rebuild --target_arch=${{ matrix.arch }}
+          ${{ env.XFVB_PFX }} ./node_modules/.bin/electron-rebuild --arch=${{ matrix.arch }}
 
       - name: Build/release Electron app
         shell: bash
