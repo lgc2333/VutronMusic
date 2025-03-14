@@ -23,7 +23,7 @@ jobs:
 
     runs-on: ${{ matrix.os }}
     env:
-      XFVB_PFX: ${{ matrix.os == 'linux-latest' && 'xvfb-run --auto-servernum -- ' || '' }}
+      XVFB_PFX: ${{ matrix.os == 'linux-latest' && 'xvfb-run --auto-servernum -- ' || '' }}
 
     steps:
       - name: Check out Git repository
@@ -47,16 +47,16 @@ jobs:
 
       - name: Install build essentials (Linux)
         if: matrix.os == 'linux-latest'
-        run: sudo apt install -y xfvb-run
+        run: sudo apt install -y xvfb-run
 
       - name: Install deps
         if: matrix.os != 'linux-latest'
-        run: ${{ env.XFVB_PFX }}yarn
+        run: ${{ env.XVFB_PFX }}yarn
 
       - name: Rebuild native dependencies for current architecture
         run: |
-          ${{ env.XFVB_PFX }} npm rebuild --target_arch=${{ matrix.arch }}
-          ${{ env.XFVB_PFX }} ./node_modules/.bin/electron-rebuild --arch=${{ matrix.arch }}
+          ${{ env.XVFB_PFX }} npm rebuild --target_arch=${{ matrix.arch }}
+          ${{ env.XVFB_PFX }} ./node_modules/.bin/electron-rebuild --arch=${{ matrix.arch }}
 
       - name: Build/release Electron app
         shell: bash
