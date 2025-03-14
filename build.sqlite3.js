@@ -167,10 +167,7 @@ async function main() {
   } else {
     if (isWindows) {
       await build('x64')
-    } else if (isMac) {
-      await build('x64')
-      await build('arm64')
-    } else if (isLinux) {
+    } else if (isMac || isLinux) {
       await build('x64')
       await build('arm64')
     }
