@@ -17,10 +17,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest] #, ubuntu-latest]
-        arch: [x64]
-        include:
-          - os: macos-latest
+        os: [windows-latest, macos-latest, ubuntu-latest]
+        arch: [x64, arm64]
+        exclude:
+          - os: windows-latest
             arch: arm64
 
     steps:
@@ -54,23 +54,13 @@ jobs:
           npm rebuild --target_arch=${{ matrix.arch }}
           ./node_modules/.bin/electron-rebuild --arch=${{ matrix.arch }}
 
-      - name: Build/release Electron app (Windows)
-        if: matrix.os == 'windows-latest'
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.github_token }}
-        run: |
-          yarn build:win || yarn build:win
-
-      - name: Build/release Electron app (macOS)
-        if: matrix.os == 'macos-latest'
+      - name: Build/release Electron app
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.github_token }}
           ARCH: ${{ matrix.arch }}
         run: |
-          yarn build:mac --${{ matrix.arch }} || yarn build:mac --${{ matrix.arch }}
-          yarn build:linux || yarn build:linux
+          yarn build --${{ matrix.arch }} || yarn build --${{ matrix.arch }}
 
       - uses: actions/upload-artifact@v4
         with:
