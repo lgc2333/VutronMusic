@@ -36,6 +36,7 @@ import { useSettingsStore } from './store/settings'
 import { useNormalStateStore } from './store/state'
 import { storeToRefs } from 'pinia'
 import Utils from './utils'
+import { initAmuseQueryChannel } from './utils/amuse'
 import { useRoute } from 'vue-router'
 import { type ProgressInfo } from 'electron-updater'
 import router from './router'
@@ -260,6 +261,7 @@ onMounted(async () => {
   )
   fetchData()
   handleChanelEvent()
+  initAmuseQueryChannel()
   checkUpdate()
 })
 

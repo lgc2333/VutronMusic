@@ -38,6 +38,11 @@ import { CacheAPIs } from './utils/CacheApis'
 import { registerGlobalShortcuts } from './globalShortcut'
 import { initAutoUpdater } from './checkUpdate'
 import log from './log'
+import {
+  AmuseServerManager,
+  MainWindowAmuseInfoGetter,
+  notImplementedInfoGetter
+} from './amuseServer'
 
 const closeOnLinux = (e: any, win: BrowserWindow) => {
   const closeOpt = store.get('settings.closeAppOption') || 'ask'
@@ -94,6 +99,7 @@ class BackGround {
   menu: Menu | null = null
   mpris: MprisImpl | null = null
   fastifyApp: FastifyInstance | null = null
+  amuseServer: AmuseServerManager | null = null
   willQuitApp: boolean = !Constants.IS_MAC
   checkInterval: any = null
   isInWindow: boolean = false
@@ -122,6 +128,9 @@ class BackGround {
 
     // create fastify app
     this.fastifyApp = await this.createFastifyApp()
+
+    this.amuseServer = new AmuseServerManager(notImplementedInfoGetter)
+    this.amuseServer.restart()
 
     this.handleAppEvents()
   }
@@ -213,6 +222,10 @@ class BackGround {
       this.win.webContents.openDevTools()
     } else {
       await this.win.loadURL(Constants.APP_INDEX_URL_PROD)
+    }
+
+    if (this.amuseServer) {
+      this.amuseServer.infoGetter = new MainWindowAmuseInfoGetter(this.win)
     }
   }
 
