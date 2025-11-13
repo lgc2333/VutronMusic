@@ -5,9 +5,9 @@ const baseConfig = {
   productName: 'VutronMusic',
   appId: '',
   asar: true,
+  asarUnpack: ['**/node_modules/sharp/**/*', '**/node_modules/@img/**/*'],
   extends: null,
-  // compression: 'maximum',
-  artifactName: '${productName} ${version}_${arch}.${ext}',
+  artifactName: '${productName}-${version}_${os}_${arch}.${ext}',
   directories: {
     output: './release/${version}'
   },
@@ -18,13 +18,7 @@ const baseConfig = {
     notarize: false,
     icon: 'buildAssets/icons/icon.icns',
     type: 'distribution',
-    target: [
-      {
-        target: 'dmg',
-        arch: ['x64', 'arm64']
-        // arch: ['x64', 'arm64', 'universal']
-      }
-    ]
+    target: [{ target: 'dmg', arch: 'x64' }]
   },
   dmg: {
     contents: [
@@ -45,26 +39,13 @@ const baseConfig = {
   win: {
     icon: 'buildAssets/icons/icon.ico',
     target: [
-      {
-        target: 'appx',
-        arch: 'x64'
-      },
-      {
-        target: 'zip',
-        arch: 'x64'
-      },
-      {
-        target: 'portable',
-        arch: 'x64'
-      },
-      {
-        target: 'nsis',
-        arch: 'x64'
-      }
+      { target: 'zip', arch: 'x64' },
+      { target: 'portable', arch: 'x64' },
+      { target: 'nsis', arch: 'x64' }
     ]
   },
   portable: {
-    artifactName: '${productName} ${version}_${arch} Portable.${ext}'
+    artifactName: '${productName}-${version}_${os}_${arch}-Portable.${ext}'
   },
   nsis: {
     oneClick: false,
@@ -110,7 +91,8 @@ baseConfig.files = [
   '!dist/main/index.dev.js',
   '!docs/**/*',
   '!tests/**/*',
-  '!release/**/*'
+  '!release/**/*',
+  '!**/.build-id/**'
 ]
 
 // TODO: Notarize for macOS

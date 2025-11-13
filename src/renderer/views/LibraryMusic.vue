@@ -127,7 +127,7 @@
         </div>
 
         <div v-show="currentTab === 'mvs'">
-          <Mvrow :mvs="liked.mvs" />
+          <Mvrow :mvs="liked.mvs" :is-end="true" />
         </div>
 
         <div v-show="currentTab === 'artist'">
@@ -183,16 +183,25 @@
     </div>
 
     <ContextMenu ref="playlistTabMenu">
-      <div class="item" @click="changePlaylistFilter('all')">{{
-        $t('contextMenu.allPlaylists')
-      }}</div>
+      <div
+        class="item"
+        :class="{ active: libraryPlaylistFilter === 'all' }"
+        @click="changePlaylistFilter('all')"
+        >{{ $t('contextMenu.allPlaylists') }}</div
+      >
       <hr />
-      <div class="item" @click="changePlaylistFilter('mine')">{{
-        $t('contextMenu.minePlaylists')
-      }}</div>
-      <div class="item" @click="changePlaylistFilter('liked')">{{
-        $t('contextMenu.likedPlaylists')
-      }}</div>
+      <div
+        class="item"
+        :class="{ active: libraryPlaylistFilter === 'mine' }"
+        @click="changePlaylistFilter('mine')"
+        >{{ $t('contextMenu.minePlaylists') }}</div
+      >
+      <div
+        class="item"
+        :class="{ active: libraryPlaylistFilter === 'liked' }"
+        @click="changePlaylistFilter('liked')"
+        >{{ $t('contextMenu.likedPlaylists') }}</div
+      >
     </ContextMenu>
   </div>
 </template>
@@ -201,16 +210,7 @@
 import { storeToRefs } from 'pinia'
 import { useDataStore } from '../store/data'
 import { useNormalStateStore } from '../store/state'
-import {
-  onActivated,
-  onDeactivated,
-  ref,
-  computed,
-  onMounted,
-  onUnmounted,
-  inject,
-  nextTick
-} from 'vue'
+import { ref, computed, onMounted, onUnmounted, inject, nextTick } from 'vue'
 import { dailyTask, randomNum } from '../utils'
 import { tricklingProgress } from '../utils/tricklingProgress'
 import { getTrackDetail } from '../api/track'
@@ -230,8 +230,6 @@ const { newPlaylistModal } = storeToRefs(useNormalStateStore())
 const show = ref(false)
 const playHistoryMode = ref('week')
 const router = useRouter()
-// const playlists = liked.value.playlists
-// const songs = liked.value.songs
 
 const lyric = ref<{ content: string }[]>([])
 const randomtrack = ref<{ [key: string]: any }>()
@@ -258,7 +256,7 @@ const pickedLyricLines = computed(() => {
 const winHeight = ref(window.innerHeight)
 
 const historyHeight = computed(() => {
-  const height = winHeight.value - 46 - (hasCustomTitleBar.value ? 84 : 64)
+  const height = winHeight.value - 72 - (hasCustomTitleBar.value ? 84 : 64)
   return height
 })
 
@@ -325,7 +323,7 @@ const loadData = async () => {
 const getRandomLyric = () => {
   if (liked.value.songs.length === 0) return
   const id = liked.value.songs[randomNum(0, liked.value.songs.length - 1)]
-  fetch(`atom://get-lyric/${id}`)
+  fetch(`atom://local-asset?type=lyric&id=${id}`)
     .then((res) => res.json())
     .then((data) => {
       if (data?.lrc?.lyric?.length) {
@@ -333,7 +331,7 @@ const getRandomLyric = () => {
         const isInstrumental = lyricObj.lyric.filter((l) => l.content?.includes('纯音乐，请欣赏'))
         if (isInstrumental.length === 0) {
           lyric.value = lyricObj.lyric
-          getTrackDetail(id).then((data) => {
+          getTrackDetail(id.toString()).then((data) => {
             randomtrack.value = data.songs[0]
           })
         }
@@ -358,11 +356,9 @@ const openAddPlaylistModal = () => {
 const updateCurrentTab = (tab: string) => {
   currentTab.value = tab
   nextTick(() => {
-    updatePadding(0)
+    updatePadding(32)
   })
 }
-
-// const scrollTo = inject('scrollTo') as (top: number) => void
 
 const openPlaylistTabMenu = (e: MouseEvent) => {
   playlistTabMenu.value?.openMenu(e)
@@ -370,7 +366,6 @@ const openPlaylistTabMenu = (e: MouseEvent) => {
 
 const changePlaylistFilter = (type: string) => {
   libraryPlaylistFilter.value = type
-  // scrollTo(300)
 }
 
 const observeTab = new IntersectionObserver(
@@ -378,7 +373,7 @@ const observeTab = new IntersectionObserver(
     entries.forEach((entry) => {
       const intersectionRatio = entry.intersectionRatio
       const maxPadding = 42
-      const maxPaddingRight = hasCustomTitleBar.value ? 120 : 84
+      const maxPaddingRight = 224
       if (intersectionRatio > 0) {
         if (isMac.value) {
           const paddingLeft = maxPadding * (1 - intersectionRatio)
@@ -408,21 +403,16 @@ const handleResize = () => {
   if (tabsRowRef.value) observeTab.observe(tabsRowRef.value)
 }
 
-onActivated(() => {
+onMounted(() => {
+  window.addEventListener('resize', handleResize)
   setTimeout(() => {
     if (!show.value) tricklingProgress.start()
   }, 1000)
   loadData()
   dailyTask()
   setTimeout(() => {
-    updatePadding(0)
+    updatePadding(32)
   }, 100)
-})
-onDeactivated(() => {
-  updatePadding(96)
-})
-onMounted(() => {
-  window.addEventListener('resize', handleResize)
   if (tabsRowRef.value) {
     observeTab.observe(tabsRowRef.value)
   }
@@ -430,7 +420,7 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize)
   observeTab.disconnect()
-  // observeSectionOne.disconnect()
+  updatePadding(96)
 })
 </script>
 
@@ -516,8 +506,9 @@ onUnmounted(() => {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    // height: 64px;
+    height: 64px;
     width: 100%;
+    box-sizing: border-box;
     z-index: 10;
 
     .tabs {

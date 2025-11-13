@@ -18,6 +18,7 @@
           :id="item.id"
           :image-url="getImageUrl(item)"
           :type="type"
+          :service="item.service"
           :play-button-size="type === 'artist' ? 26 : playButtonSize"
         />
         <div class="text">
@@ -56,7 +57,7 @@ const props = defineProps({
   items: { type: Array as () => any[], required: true },
   type: { type: String, default: '' },
   subText: { type: String, default: null },
-  itemHeight: { type: Number, default: 260 },
+  itemHeight: { type: Number, default: 240 },
   showPosition: { type: Boolean, default: true },
   subTextFontSize: { type: String, default: '16px' },
   showPlayCount: { type: Boolean, default: false },
@@ -78,11 +79,11 @@ const getImageUrl = (item: any) => {
     let img1v1ID = item.img1v1Url.split('/')
     img1v1ID = img1v1ID[img1v1ID.length - 1]
     if (img1v1ID === '5639395138885805.jpg') {
-      return 'https://p2.music.126.net/VnZiScyynLG7atLIZ2YPkw==/18686200114669622.jpg?param=512y512'
+      return 'https://p2.music.126.net/VnZiScyynLG7atLIZ2YPkw==/18686200114669622.jpg?param=256y256'
     }
   }
   const img = item.img1v1Url || item.picUrl || item.coverImgUrl || item.avatarUrl
-  return `${img?.replace('thumbnail=140y140&', 'thumbnail=512y512&').replace('http://', 'https://')}?param=512y512`
+  return `${img?.replace('thumbnail=140y140&', 'thumbnail=256y256&')}${item.service ? '' : '?param=256y256'}`
 }
 
 const isExplicit = (item: any) => {

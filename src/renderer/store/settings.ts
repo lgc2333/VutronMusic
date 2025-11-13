@@ -3,16 +3,22 @@ import { ref, reactive, watch, onMounted, toRaw } from 'vue'
 import DefaultShortcuts from '../utils/shortcuts'
 import { playlistCategories } from '../utils/common'
 import cloneDeep from 'lodash/cloneDeep'
+import { useLocalMusicStore } from './localMusic'
 
 export type TranslationMode = 'none' | 'tlyric' | 'rlyric'
-export type StreamStatus = 'logout' | 'login' | 'offline'
+export type TrackInfoOrder = 'path' | 'online' | 'embedded'
+type TextAlign = 'start' | 'center' | 'end'
+type BackgroundEffect = 'none' | 'true' | 'blur' | 'dynamic'
 
 export const useSettingsStore = defineStore(
   'settings',
   () => {
+    const localMusicStore = useLocalMusicStore()
+    const { scanLocalMusic } = localMusicStore
+
     const enabledPlaylistCategories = playlistCategories.filter((c) => c.enable).map((c) => c.name)
     const theme = reactive({
-      appearance: 'auto', // auto | dark | light
+      appearance: 'auto', // as 'auto' | 'dark' | 'light',
       colors: [
         { name: 'blue', color: 'rgba(51, 94, 234, 1)', selected: true },
         { name: 'purple', color: 'rgba(136, 84, 208, 1)', selected: false },
@@ -24,8 +30,9 @@ export const useSettingsStore = defineStore(
     const localMusic = reactive({
       enble: true,
       scanDir: '',
-      replayGain: true,
+      replayGain: false,
       useInnerInfoFirst: false,
+      trackInfoOrder: ['online', 'path', 'embedded'] as TrackInfoOrder[],
       scanning: false
     })
     const general = reactive({
@@ -36,7 +43,13 @@ export const useSettingsStore = defineStore(
       musicLanguage: 'all',
       closeAppOption: 'ask',
       useCustomTitlebar: false,
-      enabledPlaylistCategories
+      preventSuspension: false,
+      lyricBackground: 'true' as BackgroundEffect,
+      enabledPlaylistCategories,
+      fadeDuration: 0.2, // 音频淡入淡出时长（秒）
+      showBanner: true,
+      jumpToLyricBegin: true,
+      trayColor: 0 // 0: 彩色, 1: 白色, 2: 黑色, 3: 跟随系统
     })
 
     const tray = reactive({
@@ -51,26 +64,24 @@ export const useSettingsStore = defineStore(
     const normalLyric = reactive<{
       nFontSize: number
       isNWordByWord: boolean
+      isTWordByWord: boolean
       nTranslationMode: TranslationMode
+      textAlign: TextAlign
+      useMask: boolean
+      isZoom: boolean
     }>({
       nFontSize: 28,
       isNWordByWord: true,
-      nTranslationMode: 'tlyric'
-    })
-
-    const osdLyric = reactive({
-      show: false,
-      opacity: 0.2,
-      fontSize: 24,
-      playedColor: 'rgba(57, 203, 255, 1)',
-      unplayedColor: 'rgba(255, 255, 255, 0.8)',
-      alwaysOnTop: false,
-      lock: false
+      isTWordByWord: true,
+      nTranslationMode: 'tlyric',
+      textAlign: 'start',
+      useMask: true,
+      isZoom: true
     })
 
     const unblockNeteaseMusic = reactive({
       enable: true,
-      source: '',
+      source: 'bodian, kuwo, kugou, ytdlp, qq, bilibili, pyncmd, migu',
       enableFlac: true,
       orderFirst: true,
       jooxCookie: '',
@@ -81,6 +92,23 @@ export const useSettingsStore = defineStore(
       enable: false,
       sizeLimit: 512 as boolean | number,
       number: 0
+    })
+
+    const playerTheme = reactive({
+      common: [
+        { name: '默认' as const, selected: true, font: '', img: 'common' },
+        { name: '旋转封面' as const, selected: false, font: '', img: 'rotate' }
+      ],
+      creative: [
+        // { name: '信笺歌词' as const, selected: false, font: '' },
+        {
+          name: '歌词环游' as const,
+          selected: false,
+          font: '',
+          senseIndex: 0,
+          img: 'creative_snow'
+        }
+      ]
     })
 
     const enableGlobalShortcut = ref(false)
@@ -105,9 +133,16 @@ export const useSettingsStore = defineStore(
     )
 
     watch(
+      () => localMusic.scanDir,
+      () => {
+        scanLocalMusic()
+      }
+    )
+
+    watch(
       unblockNeteaseMusic,
       (value) => {
-        window.mainApi.send('setStoreSettings', { unblockNeteaseMusic: cloneDeep(toRaw(value)) })
+        window.mainApi?.send('setStoreSettings', { unblockNeteaseMusic: cloneDeep(toRaw(value)) })
       },
       {
         deep: true
@@ -117,7 +152,7 @@ export const useSettingsStore = defineStore(
     watch(
       autoCacheTrack,
       (value) => {
-        window.mainApi.send('setStoreSettings', { autoCacheTrack: cloneDeep(toRaw(value)) })
+        window.mainApi?.send('setStoreSettings', { autoCacheTrack: cloneDeep(toRaw(value)) })
       },
       { deep: true }
     )
@@ -125,53 +160,67 @@ export const useSettingsStore = defineStore(
     watch(
       () => localMusic.useInnerInfoFirst,
       (newValue) => {
-        window.mainApi.send('setStoreSettings', { innerFirst: newValue })
+        window.mainApi?.send('setStoreSettings', { innerFirst: newValue })
+      }
+    )
+
+    watch(
+      () => localMusic.trackInfoOrder,
+      (value) => {
+        window.mainApi?.send('setStoreSettings', { trackInfoOrder: toRaw(value) })
       }
     )
 
     watch(
       () => tray.showControl || tray.showLyric,
       (newValue) => {
-        window.mainApi.send('setStoreSettings', { enableTrayMenu: !newValue })
+        window.mainApi?.send('setStoreSettings', { enableTrayMenu: !newValue })
       }
     )
 
     watch(
       () => tray.showTray,
       (value) => {
-        window.mainApi.send('setStoreSettings', { showTray: value })
+        window.mainApi?.send('setStoreSettings', { showTray: value })
       }
     )
 
     watch(enableGlobalShortcut, (value) => {
-      window.mainApi.send('setStoreSettings', { enableGlobalShortcut: value })
+      window.mainApi?.send('setStoreSettings', { enableGlobalShortcut: value })
     })
 
     watch(
       () => general.language,
       (newValue) => {
-        window.mainApi.send('setStoreSettings', { lang: newValue })
+        window.mainApi?.send('setStoreSettings', { lang: newValue })
       }
     )
 
     watch(
       () => general.musicQuality,
       (newValue) => {
-        window.mainApi.send('setStoreSettings', { musicQuality: newValue })
+        window.mainApi?.send('setStoreSettings', { musicQuality: newValue })
       }
     )
 
     watch(
       () => general.closeAppOption,
       (newValue) => {
-        window.mainApi.send('setStoreSettings', { closeAppOption: newValue })
+        window.mainApi?.send('setStoreSettings', { closeAppOption: newValue })
       }
     )
 
     watch(
       () => general.useCustomTitlebar,
       (val) => {
-        window.mainApi.send('setStoreSettings', { useCustomTitlebar: val })
+        window.mainApi?.send('setStoreSettings', { useCustomTitlebar: val })
+      }
+    )
+
+    watch(
+      () => general.trayColor,
+      (val) => {
+        window.mainApi?.send('setStoreSettings', { trayColor: val })
       }
     )
 
@@ -190,36 +239,54 @@ export const useSettingsStore = defineStore(
       const newShortcut = shortcuts.value.find((s) => s.id === id)!
       newShortcut[type] = shortcut
       shortcuts.value = shortcuts.value.map((s) => (s.id === id ? newShortcut : s))
-      window.mainApi.send('setStoreSettings', { shortcuts: cloneDeep(toRaw(shortcuts.value)) })
+      window.mainApi?.send('setStoreSettings', { shortcuts: cloneDeep(toRaw(shortcuts.value)) })
     }
 
     const restoreDefaultShortcuts = () => {
       shortcuts.value = cloneDeep(DefaultShortcuts)
-      window.mainApi.send('setStoreSettings', { shortcuts: cloneDeep(toRaw(shortcuts.value)) })
+      window.mainApi?.send('setStoreSettings', { shortcuts: cloneDeep(toRaw(shortcuts.value)) })
     }
+
+    window.mainApi?.on('resume', () => {
+      setTimeout(() => {
+        const trayMenu = !(tray.showControl || tray.showLyric)
+        window.mainApi?.send('setStoreSettings', {
+          enableTrayMenu: trayMenu
+        })
+      }, 5000)
+    })
 
     onMounted(() => {
       const trayMenu = !(tray.showControl || tray.showLyric)
-      window.mainApi.send('setStoreSettings', {
+      window.mainApi?.send('setStoreSettings', {
         lang: general.language,
         enableGlobalShortcut: enableGlobalShortcut.value,
         shortcuts: toRaw(shortcuts.value),
         enableTrayMenu: trayMenu,
+        trayColor: general.trayColor,
         innerFirst: localMusic.useInnerInfoFirst,
         musicQuality: general.musicQuality,
         closeAppOption: general.closeAppOption,
-        useCustomTitlebar: general.useCustomTitlebar
+        useCustomTitlebar: general.useCustomTitlebar,
+        trackInfoOrder: toRaw(localMusic.trackInfoOrder)
       })
+      if (window.env?.isWindows) return
+      setInterval(() => {
+        const trayMenu = !(tray.showControl || tray.showLyric)
+        window.mainApi?.send('setStoreSettings', {
+          enableTrayMenu: trayMenu
+        })
+      }, 60000)
     })
     return {
       theme,
       general,
       localMusic,
       tray,
+      playerTheme,
       enableGlobalShortcut,
       shortcuts,
       normalLyric,
-      osdLyric,
       autoCacheTrack,
       unblockNeteaseMusic,
       updateShortcut,

@@ -2,16 +2,18 @@ import { app, net } from 'electron'
 import fs from 'fs'
 import path from 'path'
 import crypto from 'crypto'
+import jschardet from 'jschardet'
+import iconv from 'iconv-lite'
+import { fileTypeFromBuffer } from 'file-type'
 import { IAudioMetadata, parseFile } from 'music-metadata'
 import request from '../appServer/request'
 import { CacheAPIs } from './CacheApis'
 import Cache from '../cache'
-import store from '../store'
-import navidrome from '../streaming/navidrome'
-import emby from '../streaming/emby'
+import store, { TrackInfoOrder } from '../store'
 
 import { Readable } from 'stream'
 import { db, Tables } from '../db'
+import log from '../log'
 
 export const isFileExist = (file: string) => {
   return fs.existsSync(file)
@@ -42,52 +44,62 @@ export const getLyricFromMetadata = (metadata: IAudioMetadata) => {
         ? common.lyrics[0].syncText[0]?.text
         : (common.lyrics[0].text ?? '')
     }
-  } else {
-    for (const tag of format.tagTypes ?? []) {
-      if (tag === 'vorbis') {
-        // flac
-        lyrics = (native.vorbis?.find((item) => item.id === 'LYRICS')?.value ?? '') as string
-      } else if (tag === 'ID3v2.3') {
-        lyrics = (native['ID3v2.3'].find((item) => item.id === 'USLT')?.value as any)?.text ?? ''
-      } else if (tag === 'ID3v2.4') {
-        lyrics = (native['ID3v2.4'].find((item) => item.id === 'USLT')?.value as any)?.text ?? ''
-      } else if (tag === 'APEv2') {
-        // APEv2好像并没有固定的歌词标签，todo...
-      }
+  }
+  if (lyrics || lyrics !== undefined) return lyrics
+  for (const tag of format.tagTypes ?? []) {
+    if (tag === 'vorbis') {
+      // flac
+      lyrics = (native.vorbis?.find((item) => item.id === 'LYRICS')?.value ?? '') as string
+    } else if (tag === 'ID3v2.3') {
+      lyrics = (native['ID3v2.3'].find((item) => item.id === 'USLT')?.value as any)?.text ?? ''
+    } else if (tag === 'ID3v2.4') {
+      lyrics = (native['ID3v2.4'].find((item) => item.id === 'USLT')?.value as any)?.text ?? ''
+    } else if (tag === 'APEv2') {
+      // APEv2好像并没有固定的歌词标签，todo...
     }
   }
   return lyrics
 }
 
-const splitLines = (str: string) => {
-  if (str.includes('\r\n')) {
-    return str.split('\r\n')
-  } else if (str.includes('\r')) {
-    return str.split('\r')
-  } else {
-    return str.split('\n')
-  }
-}
-
 export const parseLyricString = (lyrics: string) => {
-  const lyricsLines = splitLines(lyrics)
-  const groupedResult: Array<string>[] = lyricsLines.reduce(
-    (acc: string[][], curr) => {
-      if (curr === '') {
-        acc.push([])
-        acc[acc.length - 1].push(curr)
+  const extractLrcRegex = /^(?<lyricTimestamps>(?:\[.+?\])+)(?!\[)(?<content>.+)$/gm
+
+  const lyricMap = new Map()
+  const chineseRegex = /[\u4E00-\u9FFF]/
+  const result = {
+    lrc: { lyric: [] },
+    tlyric: { lyric: [] },
+    romalrc: { lyric: [] },
+    yrc: { lyric: [] },
+    ytlrc: { lyric: [] },
+    yromalrc: { lyric: [] }
+  }
+
+  for (const line of lyrics.trim().matchAll(extractLrcRegex)) {
+    const { lyricTimestamps, content } = line.groups
+    if (!lyricMap.has(lyricTimestamps)) {
+      lyricMap.set(lyricTimestamps, [])
+    }
+    lyricMap.get(lyricTimestamps).push(lyricTimestamps + content)
+  }
+
+  for (const lyricArray of lyricMap.values()) {
+    for (let i = 0; i < lyricArray.length; i++) {
+      if (i === 0) {
+        result.lrc.lyric.push(lyricArray[0])
       } else {
-        acc[acc.length - 1].push(curr)
+        if (chineseRegex.test(lyricArray[i])) {
+          result.tlyric.lyric.push(lyricArray[i])
+        } else {
+          result.romalrc.lyric.push(lyricArray[i])
+        }
       }
-      return acc
-    },
-    [[]]
-  )
-  const lyricArray = groupedResult.filter((item) => item.length > 1)
-  return lyricArray
+    }
+  }
+  return result
 }
 
-export const getLyricFromLocalTrack = async (metadata: IAudioMetadata) => {
+const getLyricFromEmbedded = async (filePath: string) => {
   let result = {
     lrc: { lyric: [] },
     tlyric: { lyric: [] },
@@ -97,36 +109,32 @@ export const getLyricFromLocalTrack = async (metadata: IAudioMetadata) => {
     yromalrc: { lyric: [] }
   }
 
+  const metadata = await parseFile(decodeURI(filePath))
+
   const lyrics = getLyricFromMetadata(metadata)
 
   if (lyrics) {
-    const lyricArray = parseLyricString(lyrics)
-
-    if (lyricArray.length) {
-      result = {
-        lrc: { lyric: lyricArray[0] || [] },
-        tlyric: { lyric: lyricArray[1] || [] },
-        romalrc: { lyric: lyricArray[2] || [] },
-        yrc: { lyric: [] },
-        ytlrc: { lyric: [] },
-        yromalrc: { lyric: [] }
-      }
-    }
+    result = parseLyricString(lyrics)
   }
   return result
 }
 
-export const getColorFromMetadata = async (metadata: IAudioMetadata) => {
-  const { pic } = await getPicFromMetadata(metadata)
-  const Vibrant = require('node-vibrant')
-  const Color = require('color')
-  const palette = await Vibrant.from(pic, {
-    colorCount: 1
-  }).getPalette()
-  const originColor = Color.rgb(palette.DarkMuted._rgb)
-  const color = originColor.darken(0.1).rgb().string()
-  const color2 = originColor.lighten(0.28).rotate(-30).rgb().string()
-  return { color, color2 }
+const getLyricFromPath = async (filePath: string) => {
+  let result = {
+    lrc: { lyric: [] },
+    tlyric: { lyric: [] },
+    romalrc: { lyric: [] },
+    yrc: { lyric: [] },
+    ytlrc: { lyric: [] },
+    yromalrc: { lyric: [] }
+  }
+  const buffer = await fs.promises.readFile(filePath)
+  const detected = jschardet.detect(buffer)
+  const lyrics = iconv.decode(buffer, detected.encoding)
+  if (lyrics) {
+    result = parseLyricString(lyrics)
+  }
+  return result
 }
 
 export const getReplayGainFromMetadata = (metadata: IAudioMetadata) => {
@@ -166,12 +174,10 @@ export const splitArtist = (artist: string | undefined) => {
 }
 
 // new
-const getPicOnline = async (url: string) => {
+export const getPicFromApi = async (url: string) => {
   let pic: Buffer | null = null
   let format: string = ''
-  if (!url.includes('?param=')) {
-    url = `${url}?param=512y512`
-  }
+  if (!url) return { pic, format }
   pic = await net
     .fetch(url)
     .then((res) => {
@@ -179,12 +185,17 @@ const getPicOnline = async (url: string) => {
       return res.arrayBuffer()
     })
     .then((res) => Buffer.from(res))
+    .catch((err) => {
+      console.log('===1===', err)
+      return err
+    })
   return { pic, format }
 }
 
-const getPicFromMetadata = async (metadata: IAudioMetadata) => {
+export const getPicFromEmbedded = async (filePath: string) => {
   let pic: Buffer
   let format: string
+  const metadata = await parseFile(decodeURI(filePath))
   if (metadata.common.picture && metadata.common.picture.length > 0) {
     pic = Buffer.from(metadata.common.picture[0].data)
     format = metadata.common.picture[0].format
@@ -192,47 +203,64 @@ const getPicFromMetadata = async (metadata: IAudioMetadata) => {
   return { pic, format }
 }
 
-export const getPic = async (
-  url: string,
-  matched: boolean,
-  metadata: IAudioMetadata | null
-): Promise<{ pic: Buffer; format: string }> => {
-  if (!metadata) {
-    const res = await getPicOnline(url)
-    return res
-  } else {
-    const methodPools: any[][] = [[getPicFromMetadata, metadata]]
-    // const useInnerFirst = store.get('settings.innerFirst') as boolean
+export const getPicFromPath = async (filePath: string) => {
+  let pic: Buffer | null = null
+  let format: string = ''
+  pic = await fs.promises.readFile(filePath)
+  const type = await fileTypeFromBuffer(pic)
+  format = type.mime
+  return { pic, format }
+}
 
-    if (matched) {
-      methodPools.unshift([getPicOnline, url])
-    } else {
-      methodPools.push([getPicOnline, url])
+export const getPic = async (track: any): Promise<{ pic: Buffer; format: string }> => {
+  const trackInfoOrder = (store.get('settings.trackInfoOrder') as TrackInfoOrder[]) || [
+    'path',
+    'online',
+    'embedded'
+  ]
+
+  let res: { pic: Buffer<ArrayBufferLike>; format: string }
+  const url = track.album?.picUrl || track.al?.picUrl
+
+  for (const order of trackInfoOrder) {
+    if (order === 'online' && track.matched) {
+      res = await getPicFromApi(url)
+    } else if (order === 'path' && track.filePath) {
+      const prefixs = ['.jpg', '.png', '.jpeg', '.webp']
+      for (const prefix of prefixs) {
+        const filePath = track.filePath.replace(/\.[^/.]+$/, prefix)
+        res = await fs.promises
+          .access(filePath, fs.constants.F_OK)
+          .then(async () => {
+            return await getPicFromPath(filePath)
+          })
+          .catch(() => {
+            return { pic: null, format: '' }
+          })
+        if (res?.pic) break
+      }
+    } else if (order === 'embedded' && track.filePath) {
+      res = await getPicFromEmbedded(track.filePath)
     }
-
-    let [fn, params] = methodPools.shift()
-    let result = await fn(params)
-
-    if (!result.pic && methodPools.length > 0) {
-      ;[fn, params] = methodPools.shift()
-      result = await fn(params)
-    }
-    return result
+    if (res?.pic) return res
   }
+  res = await getPicFromApi(url)
+  return res
 }
 
 export const getPicColor = async (pic: Buffer) => {
-  const Vibrant = require('node-vibrant')
+  const { Vibrant } = require('node-vibrant/node')
   const Color = require('color')
   try {
     const palette = await Vibrant.from(pic, {
       colorCount: 1
     }).getPalette()
-    const originColor = Color.rgb(palette.DarkMuted._rgb)
+    const originColor = Color.rgb(palette.DarkMuted.rgb)
     const color = originColor.darken(0.1).rgb().string()
     const color2 = originColor.lighten(0.28).rotate(-30).rgb().string()
     return { color, color2 }
   } catch (error) {
+    log.error('获取图片颜色失败:', error)
     return { color: null, color2: null }
   }
 }
@@ -251,9 +279,7 @@ export const getLyricFromApi = async (
     return await request({
       url: '/lyric/new',
       method: 'get',
-      params: {
-        id
-      }
+      params: { id }
     })
   } catch {
     return {
@@ -267,11 +293,11 @@ export const getLyricFromApi = async (
   }
 }
 
-export const getLyric = async (
-  id: number,
-  matched: boolean,
-  paramForLocal: IAudioMetadata | string | null
-): Promise<{
+export const getLyric = async (track: {
+  id: number
+  matched: boolean
+  filePath?: string
+}): Promise<{
   lrc: { lyric: any[] }
   tlyric: { lyric: any[] }
   romalrc: { lyric: any[] }
@@ -279,21 +305,49 @@ export const getLyric = async (
   ytlrc: { lyric: any[] }
   yromalrc: { lyric: any[] }
 }> => {
-  const methodPools = []
-  if (matched) methodPools.push([getLyricFromApi, id])
-  if (paramForLocal !== null) methodPools.push([getLyricFromLocalTrack, paramForLocal])
+  const trackInfoOrder = (store.get('settings.trackInfoOrder') as TrackInfoOrder[]) || [
+    'path',
+    'online',
+    'embedded'
+  ]
 
-  let [getlyricFn, param] = methodPools.shift()
-  if (typeof param === 'string') {
-    param = await parseFile(decodeURI(param))
+  let lyrics = {
+    lrc: { lyric: [] },
+    tlyric: { lyric: [] },
+    romalrc: { lyric: [] },
+    yrc: { lyric: [] },
+    ytlrc: { lyric: [] },
+    yromalrc: { lyric: [] }
   }
-  let lyrics = await getlyricFn(param)
-  if (!lyrics.lrc?.lyric && methodPools.length > 0) {
-    ;[getlyricFn, param] = methodPools.shift()
-    if (typeof param === 'string') {
-      param = await parseFile(decodeURI(param))
+
+  for (const order of trackInfoOrder) {
+    if (order === 'online') {
+      if (track.matched) {
+        lyrics = await getLyricFromApi(track.id)
+      }
+    } else if (order === 'embedded') {
+      if (track.filePath) {
+        lyrics = await getLyricFromEmbedded(track.filePath)
+      }
+    } else if (order === 'path') {
+      if (track.filePath) {
+        const filePath = track.filePath.replace(/\.[^/.]+$/, '.lrc')
+        lyrics = await fs.promises
+          .access(filePath, fs.constants.F_OK)
+          .then(async () => {
+            return await getLyricFromPath(filePath)
+          })
+          .catch(() => ({
+            lrc: { lyric: [] },
+            tlyric: { lyric: [] },
+            romalrc: { lyric: [] },
+            yrc: { lyric: [] },
+            ytlrc: { lyric: [] },
+            yromalrc: { lyric: [] }
+          }))
+      }
     }
-    lyrics = await getlyricFn(param)
+    if (lyrics?.lrc?.lyric?.length) return lyrics
   }
   return lyrics
 }
@@ -328,6 +382,34 @@ export const handleNeteaseResult = (name: string, result: any) => {
       result.songs = mapTrackPlayableStatus(result.songs)
       return result
     }
+    case CacheAPIs.ListenedRecords: {
+      if (result.weekData) {
+        result.weekData = result.weekData.map((item: any) => {
+          item.song = { ...item.song, type: 'online', matched: true }
+          return item
+        })
+      }
+      if (result.allData) {
+        result.allData = result.allData.map((item: any) => {
+          item.song = { ...item.song, type: 'online', matched: true }
+          return item
+        })
+      }
+      return result
+    }
+    case CacheAPIs.CloudDisk: {
+      result.data = result.data.map((item: any) => {
+        item.type = 'online'
+        item.matched = true
+        if (item.simpleSong) item.simpleSong = { ...item.simpleSong, type: 'online', matched: true }
+        return item
+      })
+      return result
+    }
+    case CacheAPIs.TopSong: {
+      result.data = mapTrackPlayableStatus(result.data)
+      return result
+    }
     default:
       return result
   }
@@ -347,6 +429,8 @@ const mapTrackPlayableStatus = (tracks: any[], privileges: any[] = []) => {
     t.reason = result.reason
     t.type = 'online'
     t.matched = true
+    t.cache = false
+    t.source = 'netease'
     return t
   })
 }
@@ -447,7 +531,7 @@ export const getAudioSourceFromUnblock = async (track: any) => {
   const source = (store.get('settings.unblockNeteaseMusic.source') as string) || ''
   const sourceList = source
     ? source.split(',').map((s) => s.trim().toLowerCase())
-    : ['kuwo', 'kugou', 'ytdlp', 'qq', 'bilibili', 'pyncmd', 'migu']
+    : ['bodian', 'kuwo', 'kugou', 'ytdlp', 'qq', 'bilibili', 'pyncmd', 'migu']
 
   const qqCookie = (store.get('settings.unblockNeteaseMusic.qqCookie') as string) || ''
   const jooxCookie = store.get('settings.unblockNeteaseMusic.jooxCookie') as string
@@ -485,7 +569,8 @@ export const cacheOnlineTrack = async (track: any) => {
         fs.mkdirSync(audioCachePath)
       }
 
-      const filePath = `${audioCachePath}/${track.id}-${track.br}-${track.name}.${typeMap[contentType!] || 'mp3'}`
+      const name = track.name.replace(/[<>:"/\\|?*\x00-\x1F]/g, '_')
+      const filePath = `${audioCachePath}/${track.id}-${track.br}-${name}.${typeMap[contentType!] || 'mp3'}`
       resolve({ filePath, size })
 
       const writeStream = fs.createWriteStream(filePath)
@@ -514,7 +599,8 @@ export const deleteExcessCache = (deleteAll = false) => {
         fs.rmSync(audioCachePath, { recursive: true })
       }
       return true
-    } catch {
+    } catch (error) {
+      log.error('清理在线歌曲缓存失败:', error)
       return false
     }
   }
@@ -532,50 +618,7 @@ export const deleteExcessCache = (deleteAll = false) => {
   }
 }
 
-const getNavidromeLyric = async (url: string) => {
-  const result = {
-    lrc: { lyric: [] },
-    tlyric: { lyric: [] },
-    romalrc: { lyric: [] },
-    yrc: { lyric: [] },
-    ytlrc: { lyric: [] },
-    yromalrc: { lyric: [] }
-  }
-  const lyricRaw: any[] = await fetch(url)
-    .then((res) => {
-      if (res.ok) {
-        return res.json()
-      }
-    })
-    .then((data) => {
-      const lyricArray = data['subsonic-response'].lyricsList.structuredLyrics
-      return lyricArray ? lyricArray[0].line : []
-    })
-
-  if (lyricRaw.length) {
-    const map = new Map()
-    lyricRaw.forEach(({ start, value }) => {
-      if (!map.has(start)) {
-        map.set(start, [])
-      }
-      map.get(start).push(value)
-    })
-
-    const sortedStarts = Array.from(map.keys()).sort((a, b) => a - b)
-    sortedStarts.forEach((start) => {
-      const values = map.get(start)
-      // 生成时间前缀
-      const timeStr = formatTime(start)
-      // 根据规则：第一个放 lrc，第二个放 tlyric，第三个放 rlyric
-      if (values[0]) result.lrc.lyric.push(`${timeStr}${values[0]}`)
-      if (values[1]) result.tlyric.lyric.push(`${timeStr}${values[1]}`)
-      if (values[2]) result.romalrc.lyric.push(`${timeStr}${values[2]}`)
-    })
-  }
-  return result
-}
-
-const formatTime = (ms: number) => {
+export const formatTime = (ms: number) => {
   const totalSeconds = ms / 1000 // 将毫秒转换为秒
   const minutes = Math.floor(totalSeconds / 60) // 计算分钟
   const seconds = totalSeconds - minutes * 60 // 计算剩余的秒数（含小数部分）
@@ -589,43 +632,19 @@ const formatTime = (ms: number) => {
   return `[${minutesStr}:${secondsStr}]`
 }
 
-export const getStreamPic = (ids: string) => {
-  const service =
-    (store.get('accounts.selected') as ['navidrome', 'emby', 'jellyfin'][number]) || 'navidrome'
-  if (service === 'navidrome') {
-    const [id, size] = ids.split('/')
-    return fetch(navidrome.getPic(id, size ? Number(size) : null))
-  } else if (service === 'emby') {
-    const [id, primary, size] = ids.split('/')
-    const url = emby.getPic(Number(id), primary, Number(size))
-    return fetch(url)
-  }
+export const getFileName = (filePath: string) => {
+  const fileExt = path.extname(filePath)
+  const fileNameWithExt = path.basename(filePath)
+  const fileName = fileNameWithExt.replace(fileExt, '')
+  return fileName
 }
 
-export const getStreamMusic = (id: string, headers?: any) => {
-  const service =
-    (store.get('accounts.selected') as ['navidrome', 'emby', 'jellyfin'][number]) || 'navidrome'
-
-  if (service === 'navidrome') {
-    return fetch(navidrome.getStream(id), { headers })
-  } else if (service === 'emby') {
-    return fetch(emby.getStrem(id), { headers })
-  }
-}
-
-export const getStreamLyric = async (id: string) => {
-  const service =
-    (store.get('accounts.selected') as ['navidrome', 'emby', 'jellyfin'][number]) || 'navidrome'
-
-  if (service === 'navidrome') {
-    const url = navidrome.getLyricByID(id)
-    const lyrics = await getNavidromeLyric(url)
-    return lyrics
-  } else if (service === 'emby') {
-    const [idx, ,] = id.split('/')
-    const lyrics = await emby.getLyric(Number(idx))
-    return lyrics
-  }
+export const cleanFontName = (fontName: string) => {
+  return fontName
+    .trim()
+    .replace(/^['"]|['"]$/g, '')
+    .replace(/\s+/g, ' ')
+    .replace(/^\./, '')
 }
 
 export const randomString = (pattern: string, length: number) => {

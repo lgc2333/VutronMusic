@@ -38,19 +38,28 @@ const mainAvailChannels: string[] = [
   'stream-login',
   'get-stream-songs',
   'get-stream-playlists',
+  'get-stream-lyric',
   'deleteStreamPlaylist',
   'createStreamPlaylist',
   'updateStreamPlaylist',
   'logoutStreamMusic',
   'scrobbleStreamMusic',
   'likeAStreamTrack',
-  'get-stream-account'
+  'systemPing',
+  'get-stream-account',
+  'check-update',
+  'downloadUpdate',
+  'update-powersave',
+  'openLogFile',
+  'updateTooltip',
+  'getFontList'
 ]
 const rendererAvailChannels: string[] = [
   // amuse
   'queryAmuseInfo',
   // original
   'msgHandleScanLocalMusic',
+  'msgHandleScanLocalMusicError',
   'scanLocalMusicDone',
   'handleTrayClick',
   'play',
@@ -65,8 +74,36 @@ const rendererAvailChannels: string[] = [
   'updateOSDSetting',
   'rememberCloseAppOption',
   'msgDeletedTracks',
-  'msgExtensionCheckResult'
+  'msgExtensionCheckResult',
+  'resume',
+  'update-not-available',
+  'update-error',
+  'download-progress',
+  'setPosition',
+  'changeRouteTo'
 ]
+
+let messagePort: MessagePort | null = null
+
+ipcRenderer.on('port-connect', (event: any) => {
+  if (messagePort) {
+    messagePort.close()
+  }
+  messagePort = event.ports[0]
+  messagePort.start()
+
+  messagePort.onmessage = (event) => {
+    window.postMessage(event.data, '*')
+  }
+
+  window.postMessage({ type: 'init-from-osd' }, '*')
+})
+
+window.addEventListener('unload', () => {
+  if (messagePort) {
+    messagePort.close()
+  }
+})
 
 contextBridge.exposeInMainWorld('mainApi', {
   send: (channel: string, ...data: any[]): void => {
@@ -104,6 +141,15 @@ contextBridge.exposeInMainWorld('mainApi', {
     }
 
     throw new Error(`Unknown ipc channel name: ${channel}`)
+  },
+  sendMessage: (message: any) => {
+    messagePort?.postMessage(message)
+  },
+  closeMessagePort: () => {
+    if (messagePort) {
+      messagePort.close()
+      messagePort = null
+    }
   }
 })
 
@@ -112,5 +158,6 @@ contextBridge.exposeInMainWorld('env', {
   isEnableTitlebar: process.platform === 'win32' || process.platform === 'linux',
   isLinux: process.platform === 'linux',
   isMac: process.platform === 'darwin',
-  isWindows: process.platform === 'win32'
+  isWindows: process.platform === 'win32',
+  isDev: process.env.NODE_ENV === 'development'
 })

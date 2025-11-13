@@ -19,21 +19,22 @@
               <div class="text">{{ playlists.length }}个</div>
             </div>
             <div>
-              <div class="subtitle">本地歌手</div>
-              <div class="text">{{ artists.length }}位</div>
+              <div class="subtitle">歌曲占用</div>
+              <div class="text">{{ formatedMemory }}</div>
             </div>
           </div>
         </div>
       </div>
       <div class="right-top" @click="playThisTrack">
-        <p>
-          <span
+        <div>
+          <div
             v-for="(line, index) in pickedLyricLines"
             v-show="line !== ''"
             :key="`${line}${index}`"
-            >{{ line }}<br
-          /></span>
-        </p>
+            class="lyric-p"
+            >{{ line }}</div
+          >
+        </div>
       </div>
       <div class="right-bottom">{{ randomTrack?.artists[0].name }} - {{ randomTrack?.name }}</div>
     </div>
@@ -142,12 +143,16 @@
     <AccurateMatchModal />
 
     <ContextMenu ref="playlistTabMenu">
-      <div class="item" @click="sortBy = 'default'">{{ $t('contextMenu.defaultSort') }}</div>
-      <div class="item" @click="sortBy = 'byname'">{{ $t('contextMenu.sortByName') }}</div>
-      <div class="item" @click="sortBy = 'descend'">{{ $t('contextMenu.descendSort') }}</div>
-      <div class="item" @click="sortBy = 'ascend'">{{ $t('contextMenu.ascendSort') }}</div>
+      <div
+        v-for="sortOption in sortOptions"
+        :key="sortOption.value"
+        class="item"
+        :class="{ active: sortOption.value === sortBy }"
+        @click="sortBy = sortOption.value"
+        >{{ sortOption.name }}</div
+      >
       <hr v-show="!isBatchOp" />
-      <div v-show="!isBatchOp" class="item" @click="scanLocalMusic">{{
+      <div v-show="!isBatchOp" class="item" @click="scanLocalMusic(false)">{{
         $t('contextMenu.reScan')
       }}</div>
       <div v-show="!isBatchOp" class="item" @click="isBatchOp = true">{{
@@ -160,7 +165,7 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
 import { useNormalStateStore } from '../store/state'
-import { Track, useLocalMusicStore } from '../store/localMusic'
+import { Track, useLocalMusicStore, sortList } from '../store/localMusic'
 import { usePlayerStore } from '../store/player'
 import {
   computed,
@@ -181,7 +186,7 @@ import CoverRow from '../components/CoverRow.vue'
 import SvgIcon from '../components/SvgIcon.vue'
 import SearchBox from '../components/SearchBox.vue'
 import ContextMenu from '../components/ContextMenu.vue'
-import AccurateMatchModal from '../components/AccurateMatchModal.vue'
+import AccurateMatchModal from '../components/ModalAccurateMatch.vue'
 import { randomNum } from '../utils/index'
 import { lyricParse, pickedLyric } from '../utils/lyric'
 import { useI18n } from 'vue-i18n'
@@ -189,6 +194,7 @@ import { useI18n } from 'vue-i18n'
 // load
 const localMusicStore = useLocalMusicStore()
 const { localTracks, playlists, sortBy } = storeToRefs(localMusicStore)
+const { scanLocalMusic, getLocalLyric } = localMusicStore
 
 const { newPlaylistModal, modalOpen } = storeToRefs(useNormalStateStore())
 const { addTrackToPlayNext } = usePlayerStore()
@@ -214,16 +220,29 @@ const tabStyle = computed(() => {
 })
 
 const formatedTime = computed(() => {
-  const dt = localTracks.value.map((track) => track.dt).reduce((acc, cur) => acc + cur, 0) / 1000
+  const dt =
+    localTracks.value
+      .map((track) => track.dt)
+      .filter((dt) => dt && !isNaN(Number(dt)))
+      .reduce((acc, cur) => acc + cur, 0) / 1000
   const hourse = Math.floor(dt / 3600)
   const minutes = Math.floor((dt % 3600) / 60)
   const seconds = Math.floor(dt % 60)
   return `${hourse}:${minutes < 10 ? '0' + minutes : minutes}:${seconds < 10 ? '0' + seconds : seconds}`
 })
 
-const artists = computed(() => {
-  const ar = localTracks.value.map((track) => track.artists).flat()
-  return [...new Map(ar.map((ar) => [ar.name, ar])).values()]
+const formatedMemory = computed(() => {
+  const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB']
+  let memory = defaultTracks.value
+    .map((track) => track.size!)
+    .filter((size) => size && !isNaN(Number(size)))
+    .reduce((acc, cur) => acc + cur, 0) as number
+  let i = 0
+  while (memory >= 1024 && i < units.length - 1) {
+    memory /= 1024
+    i++
+  }
+  return `${memory.toFixed(2)} ${units[i]}`
 })
 
 const pickedLyricLines = computed(() => {
@@ -243,7 +262,6 @@ const updateTab = (val: string) => {
   observeTab.observe(tabsRowRef.value!)
 }
 
-const scanLocalMusic = inject('scanLocalMusic') as () => Promise<void>
 const selectAll = () => {
   trackListRef.value?.selectAll()
 }
@@ -321,6 +339,14 @@ const openAddPlaylistModal = () => {
 provide('isBatchOp', isBatchOp)
 
 const { t } = useI18n()
+
+const sortOptions = [
+  { name: t('contextMenu.defaultSort'), value: 'default' as (typeof sortList)[number] },
+  { name: t('contextMenu.sortByName'), value: 'byname' as (typeof sortList)[number] },
+  { name: t('contextMenu.ascendSort'), value: 'ascend' as (typeof sortList)[number] },
+  { name: t('contextMenu.descendSort'), value: 'descend' as (typeof sortList)[number] }
+]
+
 const placeHolderMap = (tab: string) => {
   const pMap = {
     localTracks: t('localMusic.songs'),
@@ -360,7 +386,7 @@ const observeTab = new IntersectionObserver(
   {
     root: null,
     rootMargin: `-${hasCustomTitleBar.value ? 84 : 64}px 0px 0px 0px`,
-    threshold: Array.from({ length: 101 }, (v, i) => i / 100)
+    threshold: Array.from({ length: 100 }, (v, i) => i / 100)
   }
 )
 
@@ -377,7 +403,7 @@ const getRandomTrack = async () => {
   let randomId: number
   while (i < ids.length - 1) {
     randomId = ids[randomNum(0, ids.length - 1)]
-    data = await fetch(`atom://get-lyric/${randomId}`).then((res) => res.json())
+    data = await getLocalLyric(randomId)
     if (data.lrc.lyric.length > 0) {
       const { lyric } = lyricParse(data)
       const isInstrumental = lyric.filter((l) => l.content?.includes('纯音乐，请欣赏'))
@@ -407,6 +433,11 @@ onMounted(() => {
     if (tabsRowRef.value) observeTab.observe(tabsRowRef.value)
   }, 100)
   getRandomTrack()
+  const tmpSort = sortBy.value
+  sortBy.value = sortList.filter((s) => s !== tmpSort)[0]
+  nextTick(() => {
+    sortBy.value = tmpSort
+  })
 })
 
 onUnmounted(() => {
@@ -424,6 +455,7 @@ onUnmounted(() => {
   background: color-mix(in oklab, var(--color-primary) var(--bg-alpha), white);
   border-radius: 14px;
   height: 240px;
+  width: 100%;
   transition: all 0.4s;
   position: relative;
   .left {
@@ -457,7 +489,7 @@ onUnmounted(() => {
     position: absolute;
     height: 190px;
     left: 580px;
-    width: 270px;
+    max-width: 270px;
     font-size: 18px;
     line-height: 30px;
     color: var(--color-primary);
@@ -465,6 +497,14 @@ onUnmounted(() => {
     justify-content: center;
     flex-direction: column;
     cursor: pointer;
+
+    .lyric-p {
+      height: 30px;
+      line-clamp: 1;
+      -webkit-line-clamp: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
   }
   .right-bottom {
     position: absolute;
@@ -493,9 +533,11 @@ onUnmounted(() => {
     position: absolute;
     top: 0;
     display: flex;
+    height: 64px;
     align-items: center;
     justify-content: space-between;
     width: 100%;
+    box-sizing: border-box;
     z-index: 10;
 
     .tabs {

@@ -11,11 +11,16 @@ import Constants from './utils/Constants'
 import store from './store'
 import path from 'path'
 
-// let playState = false
+let playState = false
 let repeatMode = 'off'
 let shuffleMode = false
+let isOSDLock = (store.get('osdWin.isLock') as boolean) || false
 
-// const getIcon = () => {}
+const themeList = [
+  { id: 0, fileName: 'vutronmusic-icon' },
+  { id: 1, fileName: 'vutronmusic-white' },
+  { id: 2, fileName: 'vutronmusic-black' }
+]
 
 const createNativeImage = (filename: string) => {
   const isDarkMode = nativeTheme.shouldUseDarkColors
@@ -24,6 +29,21 @@ const createNativeImage = (filename: string) => {
     Constants.IS_DEV_ENV
       ? path.join(process.cwd(), `./src/public/images/tray/${name}`)
       : path.join(__dirname, `../images/tray/${name}`)
+  )
+}
+
+const getIconPath = () => {
+  const themeId = (store.get('settings.trayColor') as number) || 0
+  const theme =
+    themeId === 3
+      ? nativeTheme.shouldUseDarkColors
+        ? themeList[1]
+        : themeList[2]
+      : themeList.find((t) => t.id === themeId) || themeList[0]
+  return nativeImage.createFromPath(
+    Constants.IS_DEV_ENV
+      ? path.join(process.cwd(), `./src/public/images/tray/${theme.fileName}.png`)
+      : path.join(__dirname, `../images/tray/${theme.fileName}.png`)
   )
 }
 
@@ -69,14 +89,15 @@ const createMenuTemplate = (win: BrowserWindow) => {
       label: t('play'),
       icon: createNativeImage('play'),
       click: () => win.webContents.send('play'),
-      id: 'play'
+      id: 'play',
+      visible: !playState
     },
     {
       label: t('pause'),
       icon: createNativeImage('pause'),
       click: () => win.webContents.send('play'),
       id: 'pause',
-      visible: false
+      visible: playState
     },
     {
       label: t('prev'),
@@ -140,27 +161,29 @@ const createMenuTemplate = (win: BrowserWindow) => {
       label: t('openOSD'),
       icon: createNativeImage('lrc'),
       click: () => win.webContents.send('updateOSDSetting', { show: true }),
-      id: 'openOSD'
+      id: 'openOSD',
+      visible: store.get('osdWin.show') === false
     },
     {
       label: t('closeOSD'),
       icon: createNativeImage('lrc'),
       click: () => win.webContents.send('updateOSDSetting', { show: false }),
       id: 'closeOSD',
-      visible: false
+      visible: store.get('osdWin.show')
     },
     {
       label: t('lockOSD'),
       icon: createNativeImage('lock'),
       click: () => win.webContents.send('updateOSDSetting', { lock: true }),
-      id: 'lockOSD'
+      id: 'lockOSD',
+      visible: !isOSDLock
     },
     {
       label: t('unlockOSD'),
       icon: createNativeImage('unlock'),
       click: () => win.webContents.send('updateOSDSetting', { lock: false }),
       id: 'unlockOSD',
-      visible: false
+      visible: isOSDLock
     },
     { type: 'separator' },
     {
@@ -174,6 +197,7 @@ const createMenuTemplate = (win: BrowserWindow) => {
 export interface YPMTray {
   createTray: () => void
   updateTray: (img: string, width: number, height: number) => void
+  updateTrayColor: () => void
   destroyTray: () => void
   show: () => void
   setContextMenu: (setMenu: boolean) => void
@@ -183,6 +207,7 @@ export interface YPMTray {
   setShuffleMode: (isShuffle: boolean) => void
   setShowOSD: (show: boolean) => void
   setOSDLock: (lock: boolean) => void
+  updateTooltip: (title: string) => void
 }
 
 class TrayImpl implements YPMTray {
@@ -198,7 +223,10 @@ class TrayImpl implements YPMTray {
     this.createTray()
     this.setContextMenu()
 
+    this.updateTooltip(app.name)
+
     nativeTheme.on('updated', () => {
+      this.updateTrayColor()
       this.setContextMenu(true)
     })
   }
@@ -208,13 +236,7 @@ class TrayImpl implements YPMTray {
       const tray = new Tray(nativeImage.createEmpty())
       this._tray = tray
     } else {
-      const image = nativeImage
-        .createFromPath(
-          Constants.IS_DEV_ENV
-            ? path.join(process.cwd(), `./src/public/images/tray/vutronmusic-icon.png`)
-            : path.join(__dirname, `../images/tray/vutronmusic-icon.png`)
-        )
-        .resize({ height: 20, width: 20 })
+      const image = getIconPath().resize({ height: 20, width: 20 })
       this._tray = new Tray(image)
     }
     this._tray.on('click', (event, bounds, position) => {
@@ -241,6 +263,12 @@ class TrayImpl implements YPMTray {
     this._tray.setImage(image)
   }
 
+  updateTrayColor() {
+    if (!this._tray || Constants.IS_MAC) return
+    const icon = getIconPath()
+    this._tray.setImage(icon.resize({ height: 20, width: 20 }))
+  }
+
   show() {
     this._win.show()
   }
@@ -264,6 +292,7 @@ class TrayImpl implements YPMTray {
   }
 
   setOSDLock(lock: boolean) {
+    isOSDLock = lock
     if (!this._contextMenu) return
     this._contextMenu.getMenuItemById('lockOSD').visible = !lock
     this._contextMenu.getMenuItemById('unlockOSD').visible = lock
@@ -271,7 +300,7 @@ class TrayImpl implements YPMTray {
   }
 
   setPlayState(isPlaying: boolean) {
-    // playState = isPlaying || false
+    playState = isPlaying || false
     if (!this._contextMenu) return
     this._contextMenu.getMenuItemById('play').visible = !isPlaying
     this._contextMenu.getMenuItemById('pause').visible = isPlaying
@@ -297,6 +326,10 @@ class TrayImpl implements YPMTray {
     if (!this._contextMenu) return
     this._contextMenu.getMenuItemById('shuffle').checked = isShuffle
     this._tray.setContextMenu(this._contextMenu)
+  }
+
+  updateTooltip(title: string) {
+    if (!Constants.IS_MAC) this._tray.setToolTip(title)
   }
 }
 

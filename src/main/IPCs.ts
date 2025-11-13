@@ -1,23 +1,32 @@
-import { app, ipcMain, shell, IpcMainEvent, dialog, BrowserWindow, globalShortcut } from 'electron'
+import { app, ipcMain, IpcMainEvent, BrowserWindow } from 'electron'
 import { YPMTray } from './tray'
 import { MprisImpl } from './mpris'
-// import { createDBus, signalNameEnum } from './dbusService'
-import { createDBus } from './dbusClient'
+import { checkUpdate, downloadUpdate } from './checkUpdate'
 import Constants from './utils/Constants'
 import store from './store'
 import fs from 'fs'
 import path from 'path'
-import { parseFile } from 'music-metadata'
-import cache from './cache'
-import navidrome from './streaming/navidrome'
-import emby from './streaming/emby'
 import { db, Tables } from './db'
+import { parseFile } from 'music-metadata'
 import { CacheAPIs } from './utils/CacheApis'
-import { createMD5, deleteExcessCache, getReplayGainFromMetadata, splitArtist } from './utils/utils'
+import {
+  deleteExcessCache,
+  createMD5,
+  getFileName,
+  getReplayGainFromMetadata,
+  splitArtist
+  // cleanFontName
+} from './utils/utils'
+import cache from './cache'
 import { registerGlobalShortcuts } from './globalShortcut'
 import { createMenu } from './menu'
+import log from './log'
+import navidrome from './streaming/navidrome'
+import emby from './streaming/emby'
+import jellyfin from './streaming/jellyfin'
 
-let isLock = store.get('osdWindow.isLock') as boolean
+let isLock = store.get('osdWin.isLock') as boolean
+let blockerId: number | null = null
 /*
  * IPC Communications
  * */
@@ -39,6 +48,7 @@ export default class IPCs {
 }
 
 function exitAsk(event: IpcMainEvent, win: BrowserWindow) {
+  const { dialog } = require('electron')
   event.preventDefault()
   dialog
     .showMessageBox({
@@ -127,7 +137,10 @@ function initTrayIpcMain(win: BrowserWindow, tray: YPMTray): void {
       } else if (key === 'lang') {
         const showMenu = Constants.IS_MAC ? (store.get('settings.enableTrayMenu') as boolean) : true
         tray.setContextMenu(showMenu)
+      } else if (key === 'trayColor') {
+        tray.updateTrayColor()
       } else if (key === 'enableGlobalShortcut') {
+        const { globalShortcut } = require('electron')
         if (value) {
           registerGlobalShortcuts(win)
         } else {
@@ -135,6 +148,12 @@ function initTrayIpcMain(win: BrowserWindow, tray: YPMTray): void {
         }
       } else if (key === 'shortcuts') {
         createMenu(win)
+        const global = store.get('settings.enableGlobalShortcut') as boolean
+        if (global) {
+          const { globalShortcut } = require('electron')
+          globalShortcut.unregisterAll()
+          registerGlobalShortcuts(win)
+        }
       }
     }
   })
@@ -147,12 +166,13 @@ function initTrayIpcMain(win: BrowserWindow, tray: YPMTray): void {
       tray.setOSDLock(value)
     }
   })
+
+  ipcMain.on('updateTooltip', (event: IpcMainEvent, title: string) => {
+    tray.updateTooltip(title)
+  })
 }
 
 function initOSDWindowIpcMain(win: BrowserWindow, lrc: { [key: string]: Function }): void {
-  ipcMain.on('updateLyricInfo', (event, data) => {
-    lrc.updateLyricInfo(data)
-  })
   ipcMain.on('updateOsdState', (event, data) => {
     const [key, value] = Object.entries(data)[0] as [string, any]
     store.set(`osdWin.${key}`, value)
@@ -162,8 +182,6 @@ function initOSDWindowIpcMain(win: BrowserWindow, lrc: { [key: string]: Function
       lrc.switchOSDWindow(value)
     } else if (key === 'isLock') {
       isLock = value
-      // 当设置鼠标忽略时，同时设置窗口置顶，避免窗口不位于最上层而导致无法点击
-      store.set('osdWin.isAlwaysOnTop', value)
       lrc.toggleMouseIgnore()
     }
   })
@@ -206,7 +224,7 @@ function initOSDWindowIpcMain(win: BrowserWindow, lrc: { [key: string]: Function
 
 function initTaskbarIpcMain(): void {}
 
-function initOtherIpcMain(win: BrowserWindow): void {
+async function initOtherIpcMain(win: BrowserWindow): Promise<void> {
   // Get application version
   ipcMain.handle('msgRequestGetVersion', () => {
     return Constants.APP_VERSION
@@ -214,11 +232,19 @@ function initOtherIpcMain(win: BrowserWindow): void {
 
   // Open url via web browser
   ipcMain.on('msgOpenExternalLink', async (event: IpcMainEvent, url: string) => {
+    const { shell } = require('electron')
     await shell.openExternal(url)
+  })
+
+  ipcMain.on('openLogFile', () => {
+    const { shell } = require('electron')
+    const logFilePath = log.transports.file.getFile().path
+    shell.showItemInFolder(logFilePath)
   })
 
   // Open file
   ipcMain.handle('msgOpenFile', async (event, filter: string) => {
+    const { dialog } = require('electron')
     const filters = []
     if (filter === 'text') {
       filters.push({ name: 'Text', extensions: ['txt', 'json'] })
@@ -242,6 +268,7 @@ function initOtherIpcMain(win: BrowserWindow): void {
   })
 
   ipcMain.handle('selecteFolder', async (event) => {
+    const { dialog } = require('electron')
     const result = await dialog.showOpenDialog({
       properties: ['openDirectory']
     })
@@ -280,13 +307,13 @@ function initOtherIpcMain(win: BrowserWindow): void {
         db.deleteMany(Tables.Track, deletedTracks)
         win.webContents.send('msgDeletedTracks', deletedTracks)
       } catch (e) {
-        console.log(e)
+        log.error(e)
       }
     }
   })
 
-  ipcMain.on('msgScanLocalMusic', async (event, filePath: string) => {
-    const musicFileExtensions = /\.(mp3|aiff|flac|alac|m4a|aac|wav)$/i
+  ipcMain.on('msgScanLocalMusic', async (event, data: { filePath: string; update: boolean }) => {
+    const musicFileExtensions = /\.(mp3|aiff|flac|alac|m4a|aac|wav|opus)$/i
 
     const { songs } = cache.get(CacheAPIs.LocalMusic)
     const albums = songs.map((track: any) => track.album)
@@ -296,85 +323,95 @@ function initOtherIpcMain(win: BrowserWindow): void {
     const newArtists = []
 
     const walk = async (dir: string) => {
-      const files = fs.readdirSync(dir)
+      const files = await fs.promises.readdir(dir)
       for (const file of files) {
         const filePath = path.join(dir, file)
-        const stat = fs.statSync(filePath)
+        try {
+          const stat = fs.statSync(filePath)
 
-        if (stat.isFile() && musicFileExtensions.test(filePath)) {
-          const foundtrack = songs.find((track) => track.filePath === filePath)
-          if (!foundtrack) {
-            const md5 = createMD5(filePath)
-            const metadata = await parseFile(filePath)
-            const birthDate = new Date(stat.birthtime).getTime()
-            const { common, format } = metadata
+          if (stat.isFile() && musicFileExtensions.test(filePath)) {
+            const foundtrack = songs.find((track) => track.filePath === filePath)
+            if (!foundtrack || data.update) {
+              const md5 = createMD5(filePath)
+              const metadata = await parseFile(filePath)
+              const birthDate = new Date(stat.birthtime).getTime()
+              const { common, format } = metadata
 
-            // 获取艺术家信息
-            const arIDsResult: any[] = []
-            const arts = splitArtist(common.albumartist ?? common.artist)
-            for (const art of arts) {
-              const foundArtist = [...artists, ...newArtists].find((artist) => artist.name === art)
-              if (foundArtist) {
-                arIDsResult.push(foundArtist)
-              } else {
-                const artist = {
-                  id: artists.length + newArtists.length + 1,
-                  name: art,
-                  matched: false,
-                  picUrl: 'https://p1.music.126.net/VnZiScyynLG7atLIZ2YPkw==/18686200114669622.jpg'
+              // 获取艺术家信息
+              const arIDsResult: any[] = []
+              const arts = splitArtist(common.albumartist ?? common.artist)
+              for (const art of arts) {
+                const foundArtist = [...artists, ...newArtists].find(
+                  (artist) => artist.name === art
+                )
+                if (foundArtist) {
+                  arIDsResult.push(foundArtist)
+                } else {
+                  const artist = {
+                    id: artists.length + newArtists.length + 1,
+                    name: art,
+                    matched: false,
+                    picUrl:
+                      'https://p1.music.126.net/VnZiScyynLG7atLIZ2YPkw==/18686200114669622.jpg'
+                  }
+                  arIDsResult.push(artist)
+                  newArtists.push(artist)
                 }
-                arIDsResult.push(artist)
-                newArtists.push(artist)
               }
-            }
 
-            // 获取专辑信息
-            let album = [...albums, ...newAlbums].find((album) => album.name === common.album)
-            if (!album) {
-              album = {
-                id: albums.length + newAlbums.length + 1,
-                name: common.album ?? '未知专辑',
-                matched: false,
-                picUrl: 'atom://get-default-pic'
+              // 获取专辑信息
+              const id = foundtrack?.id || songs.length + newTracks.length + 1
+              let album = [...albums, ...newAlbums].find((album) => album.name === common.album)
+              if (!album) {
+                album = {
+                  id: albums.length + newAlbums.length + 1,
+                  name: common.album ?? '未知专辑',
+                  matched: false,
+                  picUrl: `atom://local-asset?type=pic&id=${id}`
+                }
+                newAlbums.push(album)
               }
-              newAlbums.push(album)
-            }
 
-            // 获取音乐信息
-            const track = {
-              id: songs.length + newTracks.length + 1,
-              name: common.title ?? getFileName(filePath) ?? '错误文件',
-              dt: (format.duration ?? 0) * 1000,
-              source: 'localTrack',
-              gain: getReplayGainFromMetadata(metadata),
-              peak: 1,
-              br: format.bitrate ?? 320000,
-              filePath,
-              type: 'local',
-              matched: false,
-              offset: 0,
-              md5,
-              createTime: birthDate,
-              alias: [],
-              album,
-              artists: arIDsResult,
-              picUrl: 'atom://get-default-pic'
+              // 获取音乐信息
+              const track = {
+                id,
+                name: common.title ?? getFileName(filePath) ?? '错误文件',
+                dt: (format.duration ?? 0) * 1000,
+                source: 'localTrack',
+                gain: getReplayGainFromMetadata(metadata),
+                peak: 1,
+                br: format.bitrate ?? 320000,
+                filePath,
+                type: 'local',
+                matched: foundtrack?.matched || false,
+                offset: 0,
+                md5,
+                createTime: birthDate,
+                alias: [],
+                album: foundtrack?.album || album,
+                artists: foundtrack?.artists || arIDsResult,
+                size: stat.size,
+                cache: false,
+                picUrl: `atom://local-asset?type=pic&id=${id}`
+              }
+              win.webContents.send('msgHandleScanLocalMusic', { track })
+              newTracks.push(track)
             }
-            // const currentArtists = [...artists, ...newArtists].filter((artist) => arIDsResult.includes(artist.id))
-            win.webContents.send('msgHandleScanLocalMusic', { track })
-            newTracks.push(track)
+          } else if (stat.isDirectory()) {
+            await walk(filePath)
           }
-        } else if (stat.isDirectory()) {
-          await walk(filePath)
+        } catch (err) {
+          win.webContents.send('msgHandleScanLocalMusicError', { err, filePath })
         }
       }
     }
-    await walk(filePath)
+    await walk(data.filePath)
     if (newTracks.length > 0) cache.set(CacheAPIs.LocalMusic, { newTracks })
     win.webContents.send('scanLocalMusicDone')
   })
 
   ipcMain.on('msgShowInFolder', (event, path: string) => {
+    const { shell } = require('electron')
     shell.showItemInFolder(path)
   })
 
@@ -389,7 +426,7 @@ function initOtherIpcMain(win: BrowserWindow): void {
     // db.vacuum()
   })
 
-  ipcMain.handle('clearCacheTracks', (event) => {
+  ipcMain.handle('clearCacheTracks', async (event) => {
     const result = deleteExcessCache(true)
     return result
   })
@@ -418,6 +455,7 @@ function initOtherIpcMain(win: BrowserWindow): void {
       db.delete(Tables.Playlist, pid)
       return true
     } catch (error) {
+      log.error('删除本地歌单失败:', error)
       return false
     }
   })
@@ -427,7 +465,44 @@ function initOtherIpcMain(win: BrowserWindow): void {
       db.delete(Tables.AccountData, uid)
       return true
     } catch (error) {
+      log.error('登出失败:', error)
       return false
+    }
+  })
+
+  ipcMain.handle('check-update', async (event) => {
+    const info = await checkUpdate()
+    return info
+  })
+  ipcMain.on('downloadUpdate', (event) => {
+    downloadUpdate()
+  })
+
+  ipcMain.on('update-powersave', (event, enable: boolean) => {
+    const { powerSaveBlocker } = require('electron')
+    if (enable) {
+      blockerId = powerSaveBlocker.start('prevent-app-suspension')
+    } else {
+      if (powerSaveBlocker.isStarted(blockerId)) {
+        powerSaveBlocker.stop(blockerId)
+        blockerId = null
+      }
+    }
+  })
+
+  ipcMain.handle('getFontList', async (event) => {
+    try {
+      const { getFonts2 } = require('font-list') as typeof import('font-list')
+      const fonts = await getFonts2({ disableQuoting: true })
+
+      return fonts.sort((a, b) => {
+        if (a.familyName === 'system-ui') return -1
+        if (b.familyName === 'system-ui') return 1
+        return a.familyName.localeCompare(b.familyName)
+      })
+    } catch (error) {
+      log.error('获取字体列表失败:', error)
+      return ['system-ui']
     }
   })
 }
@@ -442,6 +517,8 @@ async function initMprisIpcMain(win: BrowserWindow, mpris: MprisImpl): Promise<v
   // ipcMain.on('updateCurrentLyric', (event, data) => {
   //   dbus.iface?.emit(signalNameEnum.currentLrc, data)
   // })
+
+  const createDBus = (await import('./dbusClient')).createDBus
 
   const busName = 'org.gnome.Shell.TrayLyric'
   const dbus = createDBus(busName, win)
@@ -474,15 +551,16 @@ async function initMprisIpcMain(win: BrowserWindow, mpris: MprisImpl): Promise<v
         // dbus.iface?.emit(signalNameEnum.updateLikeStatus, value)
       } else if (key === 'isPersonalFM') {
         mpris?.setPersonalFM(value)
+      } else if (key === 'progress') {
+        mpris?.setPosition({ progress: value })
+      } else if (key === 'rate') {
+        mpris?.setRate({ rate: value })
       }
     }
   })
-  ipcMain.on('playerCurrentTrackTime', (event: IpcMainEvent, progress: number) => {
-    mpris?.setPosition(progress)
-  })
 }
 
-function initStreaming() {
+async function initStreaming() {
   ipcMain.handle('stream-login', async (event: IpcMainEvent, data: any) => {
     const { platform } = data
     store.set('accounts.selected', platform)
@@ -495,26 +573,25 @@ function initStreaming() {
     } else if (platform === 'emby') {
       const response = await emby.doLogin(data.baseURL, data.username, data.password)
       return response
+    } else if (platform === 'jellyfin') {
+      const response = await jellyfin.doLogin(data.baseURL, data.username, data.password)
+      return response
     }
   })
 
-  ipcMain.handle('get-stream-songs', async (event, data) => {
-    store.set('accounts.selected', data.platform)
-    if (data.platform === 'navidrome') {
-      const tracks = await navidrome.getTracks()
-      const playlists = await navidrome.getPlaylists()
-      return {
-        code: tracks.code,
-        message: tracks.message,
-        tracks: tracks.data,
-        playlists: playlists.data
-      }
-    } else if (data.platform === 'emby') {
-      const tracks = await emby.getTracks()
-      const playlists = await emby.getPlaylists()
-      return { code: tracks.code, message: '', tracks: tracks.data, playlists: playlists.data }
+  ipcMain.handle(
+    'get-stream-songs',
+    async (event, data: { platforms: ('navidrome' | 'emby' | 'jellyfin')[] }) => {
+      const platformMap = { navidrome, emby, jellyfin }
+      const result = await Promise.all(
+        data.platforms.map(async (platform) => {
+          const tracks = await platformMap[platform].getTracks()
+          return { platform, tracks: tracks.data }
+        })
+      )
+      return result
     }
-  })
+  )
 
   ipcMain.handle('get-stream-account', (event, data) => {
     const url = (store.get(`accounts.${data.platform}.url`) as string) || ''
@@ -523,15 +600,28 @@ function initStreaming() {
     return { url, username, password }
   })
 
-  ipcMain.handle('get-stream-playlists', async (event, data) => {
-    if (data.platform === 'navidrome') {
-      const playlists = await navidrome.getPlaylists()
-      return { code: playlists.code, playlists: playlists.data }
-    } else if (data.platform === 'emby') {
-      const playlists = await emby.getPlaylists()
-      return { code: playlists.code, playlists: playlists.data }
+  ipcMain.handle(
+    'get-stream-lyric',
+    async (event, data: { platform: 'navidrome' | 'emby' | 'jellyfin'; id: number | string }) => {
+      const platformMap = { navidrome, emby, jellyfin }
+      const lyric = await platformMap[data.platform].getLyric(data.id.toString())
+      return lyric
     }
-  })
+  )
+
+  ipcMain.handle(
+    'get-stream-playlists',
+    async (event, data: { platforms: ('navidrome' | 'emby' | 'jellyfin')[] }) => {
+      const platformMap = { navidrome, emby, jellyfin }
+      const result = await Promise.all(
+        data.platforms.map(async (platform) => {
+          const playlists = await platformMap[platform].getPlaylists()
+          return { platform, playlists: playlists.data }
+        })
+      )
+      return result
+    }
+  )
 
   ipcMain.handle('logoutStreamMusic', (event, data) => {
     if (data.platform === 'navidrome') {
@@ -539,10 +629,17 @@ function initStreaming() {
       store.set('accounts.navidrome.anthorization', '')
       store.set('accounts.navidrome.token', '')
       store.set('accounts.navidrome.salt', '')
+      store.set('accounts.navidrome.status', 'logout')
       return true
     } else if (data.platform === 'emby') {
       store.set('accounts.emby.userId', '')
       store.set('accounts.emby.accessToken', '')
+      store.set('accounts.emby.status', 'logout')
+      return true
+    } else if (data.platform === 'jellyfin') {
+      store.set('accounts.jellyfin.userId', '')
+      store.set('accounts.jellyfin.accessToken', '')
+      store.set('accounts.jellyfin.status', 'logout')
       return true
     }
   })
@@ -554,6 +651,9 @@ function initStreaming() {
     } else if (data.platform === 'emby') {
       const result = await emby.deletePlaylist(data.id)
       return result
+    } else if (data.platform === 'jellyfin') {
+      const result = await jellyfin.deletePlaylist(data.id)
+      return result
     }
   })
 
@@ -563,6 +663,9 @@ function initStreaming() {
       return result
     } else if (data.platform === 'emby') {
       const result = await emby.createPlaylist(data.name)
+      return result
+    } else if (data.platform === 'jellyfin') {
+      const result = await jellyfin.createPlaylist(data.name)
       return result
     }
   })
@@ -574,6 +677,9 @@ function initStreaming() {
     } else if (data.platform === 'emby') {
       const result = await emby.addTracksToPlaylist(data.op, data.playlistId, data.ids)
       return result
+    } else if (data.platform === 'jellyfin') {
+      const result = await jellyfin.addTracksToPlaylist(data.op, data.playlistId, data.ids)
+      return result
     }
   })
 
@@ -582,6 +688,8 @@ function initStreaming() {
       navidrome.scrobble(data.id)
     } else if (data.platform === 'emby') {
       emby.scrobble(data.id)
+    } else if (data.platform === 'jellyfin') {
+      jellyfin.scrobble(data.id)
     }
   })
 
@@ -592,13 +700,18 @@ function initStreaming() {
     } else if (data.platform === 'emby') {
       const result = await emby.likeATrack(data.operation, data.id)
       return result
+    } else if (data.platform === 'jellyfin') {
+      const result = await jellyfin.likeATrack(data.operation, data.id)
+      return result
     }
   })
-}
 
-function getFileName(filePath: string) {
-  const fileExt = path.extname(filePath)
-  const fileNameWithExt = path.basename(filePath)
-  const fileName = fileNameWithExt.replace(fileExt, '')
-  return fileName
+  ipcMain.handle('systemPing', async (event) => {
+    const res = await Promise.all([
+      navidrome.systemPing(),
+      emby.systemPing(),
+      jellyfin.systemPing()
+    ])
+    return { navidrome: res[0], emby: res[1], jellyfin: res[2] }
+  })
 }

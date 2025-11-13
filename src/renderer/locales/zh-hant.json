@@ -2,11 +2,13 @@
   "nav": {
     "home": "首頁",
     "search": "搜尋",
+    "explore": "探索",
     "library": "音樂庫",
     "stream": "串流媒體",
     "localMusic": "本地音樂",
     "settings": "設定",
     "github": "GitHub 倉庫",
+    "log": "開啟 log 資料夾",
     "error": "未知錯誤",
     "track": "單曲",
     "artist": "歌手",
@@ -93,6 +95,13 @@
       "desc": "此功能僅會讀取本地歌曲元資料中的音量平衡資訊，無法掃描計算結果"
     },
     "embeddedInformation": "優先使用歌曲內嵌資訊",
+    "trackInfoOrder": {
+      "text": "歌曲資訊獲取順序設定",
+      "desc": "此功能用於設定本地歌曲資訊（歌詞、封面）的獲取順序，可拖拽調整順序",
+      "path": "從歌曲目錄下獲取",
+      "online": "從線上獲取",
+      "embedded": "從歌曲內嵌資訊中獲取"
+    },
     "positionTrack": "定位歌曲"
   },
   "artist": {
@@ -130,6 +139,7 @@
     "showLyric": "顯示歌詞",
     "setConvolver": "音效設定",
     "playBackSpeed": "倍速播放",
+    "pitch": "音調調整",
     "lyricOffset": "歌詞時間調整",
     "play": "播放",
     "addToQueue": "新增至佇列",
@@ -145,7 +155,8 @@
     "openOnBrowser": "在瀏覽器中開啟",
     "copyURL": "複製連結",
     "copyId": "複製ID",
-    "playMV": "播放MV"
+    "playMV": "播放MV",
+    "setFont": "設定字型"
   },
   "login": {
     "login": "登入",
@@ -157,6 +168,8 @@
     "usernameLogin": "使用者名稱登入",
     "loginWithEmail": "電子郵件登入",
     "loginWithPhone": "手機號碼登入",
+    "loginWithQr": "QrCode登入",
+    "loginWithCookie": "Cookie登入",
     "noticeElectron": "你的密碼會在本地進行MD5加密後傳輸到網易雲API。VutronMusic 不會傳輸你的帳號資料到任何非網易雲音樂官方的伺服器。"
   },
   "player": {
@@ -214,6 +227,10 @@
       "soft": "柔和",
       "subwoofer": "重低音",
       "vocal": "人聲"
+    },
+    "fade": {
+      "fadeDuration": "音訊淡入淡出時長（秒）",
+      "fadeDurationDesc": "切換歌曲、播放、暫停時音量漸變的時長"
     }
   },
   "common": {
@@ -233,11 +250,13 @@
       "trayLyric": "狀態列歌詞",
       "localMusic": "本地歌曲",
       "music": "音樂設定",
+      "player": "播放器設定",
       "netease": "線上音樂",
       "stream": "串流媒體音樂",
       "local": "本地音樂",
       "unblock": "音源設定",
-      "shortcut": "快捷鍵設定"
+      "shortcut": "快捷鍵設定",
+      "update": "軟體更新"
     },
     "general": {
       "language": {
@@ -246,6 +265,7 @@
         "zhHant": "繁體中文",
         "en": "English"
       },
+      "showBanner": "在首頁顯示Banner",
       "showTimeOrID": {
         "text": "歌曲列表資訊顯示選項",
         "time": "歌曲時長",
@@ -269,7 +289,23 @@
         "high": "極高",
         "lossless": "無損"
       },
-      "logout": "登出"
+      "lyricBackground": {
+        "text": "顯示歌詞背景",
+        "close": "關閉",
+        "true": "開啟",
+        "blur": "模糊封面",
+        "dynamic": "動態"
+      },
+      "trayColor": {
+        "text": "系統匣圖示顏色",
+        "color": "彩色",
+        "white": "白色",
+        "black": "黑色",
+        "auto": "自動 (跟隨系統主題)"
+      },
+      "logout": "登出",
+      "jumpToLyricBegin": "調整進度時吸附到歌詞開始位置",
+      "perventSuspend": "播放時防止系統休眠"
     },
     "theme": {
       "auto": "跟隨系統",
@@ -321,11 +357,29 @@
         "tlyric": "翻譯",
         "romalrc": "音譯"
       },
+      "font": "字型設定",
       "fontSize": "字型大小（px）",
+      "textAlign": {
+        "text": "字型對齊方式",
+        "start": "靠左",
+        "center": "置中",
+        "end": "靠右"
+      },
+      "useMask": {
+        "text": "啟用歌詞遮罩",
+        "desc": "歌詞頁上下邊緣啟用透明漸層的效果"
+      },
       "staticTime": {
         "text": "滑鼠停留時長",
-        "desc": "鎖定後，滑鼠停留該時長後（毫秒）降低視窗透明度，Linux系統下無效"
-      }
+        "desc": "鎖定後，滑鼠停留該時長後（毫秒）降低視窗透明度，",
+        "desc2": "設置為0則表示不啟用該功能，Linux系統下無效"
+      },
+      "showButtonWhenLock": {
+        "text": "鎖定後顯示解鎖按鈕",
+        "desc": "啟用後，鎖定桌面歌詞視窗時仍然顯示解鎖按鈕，",
+        "desc2": "並啟用鼠標停留降低視窗透明度功能"
+      },
+      "lyricZoom": "放縮當前播放的歌詞"
     },
     "unblock": {
       "enable": "啟用音源替換",
@@ -384,6 +438,23 @@
       "login": "已登入",
       "logout": "未登入",
       "offline": "伺服器離線"
+    },
+    "update": {
+      "currentVersion": "目前版本",
+      "updateCheck": "檢查更新",
+      "downloadUpdate": "下載更新",
+      "cancelDownload": "取消下載",
+      "goToDownload": "前往下載頁面",
+      "updateChecking": "正在檢查更新",
+      "latestVersion": "最新版本",
+      "changelog": "版本更新內容",
+      "updateAvailable": "有可用更新",
+      "updating": "更新進行中"
+    },
+    "playerTheme": {
+      "title": "播放器樣式",
+      "common": "經典模式",
+      "creative": "創意模式"
     }
   },
   "toast": {

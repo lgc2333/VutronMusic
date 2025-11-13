@@ -2,7 +2,7 @@
 import SQLite3 from 'better-sqlite3'
 import fs from 'fs'
 import path from 'path'
-// import log from './log'
+import log from './log'
 import { app } from 'electron'
 import { createFileIfNotExist } from './utils/utils'
 import Constants from './utils/Constants'
@@ -96,17 +96,12 @@ class DB {
   constructor() {
     try {
       createFileIfNotExist(this.dbFilePath)
-      const root = path.join(__dirname, '../../')
-      // const VITE_BETTER_SQLITE3_BINDING = process.env[`VITE_BETTER_SQLITE3_BINDING_${process.arch}`]
-      this.sqlite = new SQLite3(this.dbFilePath, {
-        nativeBinding: path.join(root, 'dist-native', `better_sqlite3-${process.arch}.node`)
-      })
+      this.sqlite = new SQLite3(this.dbFilePath)
       this.sqlite.pragma('auto_vacuum = FULL')
       this.initTables()
       this.migrate()
     } catch (e) {
-      console.log('111111111111111111112222, init error = ', e)
-      // log.error(e)
+      log.error(e)
     }
   }
 
@@ -119,7 +114,6 @@ class DB {
   migrate() {
     const key = 'appVersion'
     const appVersion = this.find(Tables.AppData, key)
-    // log.info('[db] App version:', appVersion)
     const updateAppVersionInDB = () => {
       this.upsert(Tables.AppData, { id: key, value: Constants.APP_VERSION })
     }
@@ -243,8 +237,46 @@ class DB {
   }
 
   deleteMany<T extends TableNames>(table: T, keys: TablesStructures[T]['id'][]) {
-    const idsQuery = keys.map((key) => `id = ${key}`).join(' OR ')
-    return this.sqlite.prepare(`DELETE FROM ${table} WHERE ${idsQuery}`).run()
+    if (keys.length === 0) return
+
+    const calculateBatchSize = () => {
+      if (keys.length > 100_000) return 50
+      if (keys.length > 10_000) return 100
+      if (keys.length > 1_000) return 250
+      return 500
+    }
+
+    const batchSize = calculateBatchSize()
+    const totalBatches = Math.ceil(keys.length / batchSize)
+
+    const transaction = this.sqlite.transaction(() => {
+      for (let i = 0; i < totalBatches; i++) {
+        const batchKeys = keys.slice(i * batchSize, (i + 1) * batchSize)
+
+        const placeholders = batchKeys.map(() => '?').join(',')
+        const query = `DELETE FROM ${table} WHERE id IN (${placeholders})`
+
+        try {
+          const stmt = this.sqlite.prepare(query)
+          stmt.run(...batchKeys)
+        } catch (batchError) {
+          log.error(
+            `[Batch ${i + 1}/${totalBatches}] Failed to delete ${batchKeys.length} records:`,
+            batchError
+          )
+          throw batchError
+        }
+      }
+    })
+
+    try {
+      // 执行事务
+      transaction()
+      log.log(`Deleted ${keys.length} records from ${table} in ${totalBatches} batches`)
+    } catch (transactionError) {
+      log.error(`Transaction failed:`, transactionError)
+      throw new Error(`Bulk delete operation partially failed: ${transactionError.message}`)
+    }
   }
 
   truncate<T extends TableNames>(table: T) {

@@ -2,12 +2,13 @@ import { app, BrowserWindow, Menu, ipcMain, shell } from 'electron'
 import defaultShortcuts from './utils/shortcuts'
 import Constants from './utils/Constants'
 import store from './store'
+import { checkUpdate } from './checkUpdate'
 
 let isPlaying = false
 let repeatMode = 'off'
 let shuffleMode = false
 let enableOSD = false
-let isLock = false
+let isLock = (store.get('osdWin.isLock') as boolean) || false
 
 export function createMenu(win: BrowserWindow) {
   let shortcuts = store.get('settings.shortcuts') as
@@ -43,6 +44,12 @@ export function createMenu(win: BrowserWindow) {
                       win.webContents.send('changeRouteTo', '/settings')
                     },
                     role: 'preferences'
+                  },
+                  {
+                    label: 'Check For Updates',
+                    accelerator: 'CmdOrCtrl+U',
+                    click: checkUpdate,
+                    role: 'checkForUpdates'
                   },
                   { type: 'separator' },
                   { role: 'hide', label: 'Hide' },
@@ -266,6 +273,12 @@ export function createMenu(win: BrowserWindow) {
                     },
                     role: 'preferences'
                   },
+                  {
+                    label: '检查更新',
+                    accelerator: 'CmdOrCtrl+U',
+                    click: checkUpdate,
+                    role: 'checkForUpdates'
+                  },
                   { type: 'separator' },
                   { role: 'hide', label: '隐藏' },
                   { role: 'hideothers', label: '隐藏其他' },
@@ -488,6 +501,12 @@ export function createMenu(win: BrowserWindow) {
                       win.webContents.send('changeRouteTo', '/settings')
                     },
                     role: 'preferences'
+                  },
+                  {
+                    label: '檢查更新',
+                    accelerator: 'CmdOrCtrl+U',
+                    click: checkUpdate,
+                    role: 'checkForUpdates'
                   },
                   { type: 'separator' },
                   { role: 'hide', label: '隱藏' },

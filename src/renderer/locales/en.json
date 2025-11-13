@@ -2,11 +2,13 @@
   "nav": {
     "home": "Home",
     "search": "Search",
+    "explore": "Explore",
     "library": "Library",
     "stream": "Stream",
     "localMusic": "Local Music",
     "settings": "Settings",
     "github": "GitHub Repository",
+    "log": "Open Log Folder",
     "error": "Unknown Error",
     "track": "Track",
     "artist": "Artist",
@@ -93,6 +95,13 @@
       "desc": "This feature reads ReplayGain metadata from local files; it does not calculate values."
     },
     "embeddedInformation": "Prioritize Embedded Track Info",
+    "trackInfoOrder": {
+      "text": "Song Information Retrieval Order",
+      "desc": "This setting determines the order in which local songs information (lyrics, cover art) is retrieved. Drag and drop to adjust the priority.",
+      "path": "From song directory",
+      "online": "From online sources",
+      "embedded": "From embedded information"
+    },
     "positionTrack": "Locate Track"
   },
   "artist": {
@@ -130,6 +139,7 @@
     "showLyric": "Show Lyrics",
     "setConvolver": "Sound Effects",
     "playBackSpeed": "Playback Speed",
+    "pitch": "Pitch",
     "lyricOffset": "Lyric Offset Adjustment",
     "play": "Play",
     "addToQueue": "Add to Queue",
@@ -145,7 +155,8 @@
     "openOnBrowser": "Open in Browser",
     "copyURL": "Copy URL",
     "copyId": "Copy ID",
-    "playMV": "Play MV"
+    "playMV": "Play MV",
+    "setFont": "Set Font"
   },
   "login": {
     "login": "Login",
@@ -153,9 +164,12 @@
     "email": "Email",
     "password": "Password",
     "loginText": "Login with NetEase Account",
+    "countryCode": "Country Code",
     "usernameLogin": "Username Login",
     "loginWithEmail": "Login with Email",
     "loginWithPhone": "Login with Phone",
+    "loginWithQr": "Login with QrCode",
+    "loginWithCookie": "Login with Cookie",
     "noticeElectron": "Your password is hashed with MD5 locally before transmission to NetEase API. VutronMusic does not transmit your account data to any non-official servers."
   },
   "player": {
@@ -213,6 +227,10 @@
       "soft": "Soft",
       "subwoofer": "Subwoofer",
       "vocal": "Vocal"
+    },
+    "fade": {
+      "fadeDuration": "Audio Fade In/Out Duration (seconds)",
+      "fadeDurationDesc": "Duration of volume fade when switching, playing, or pausing."
     }
   },
   "common": {
@@ -232,11 +250,13 @@
       "trayLyric": "Tray Lyrics",
       "localMusic": "Local Music",
       "music": "Msc Setting",
+      "player": "Player Setting",
       "netease": "Online Music",
       "stream": "Stream Music",
       "local": "Local Music",
       "unblock": "Unblock",
-      "shortcut": "Shortcuts"
+      "shortcut": "Shortcuts",
+      "update": "Update"
     },
     "general": {
       "language": {
@@ -250,6 +270,7 @@
         "time": "Duration",
         "ID": "Track ID"
       },
+      "showBanner": "Show Banner In Home Page",
       "useCustomTitlebar": "Use Custom Titlebar (Restart Required)",
       "outputDevice": {
         "text": "Audio Output Device",
@@ -268,7 +289,23 @@
         "high": "High",
         "lossless": "Lossless"
       },
-      "logout": "Logout"
+      "lyricBackground": {
+        "text": "Show lyrics background",
+        "close": "Close",
+        "true": "Open",
+        "blur": "Blur cover",
+        "dynamic": "Dynamic"
+      },
+      "trayColor": {
+        "text": "Tray Icon Color",
+        "color": "Color",
+        "white": "White",
+        "black": "Black",
+        "auto": "Auto (Based on system theme)"
+      },
+      "logout": "Logout",
+      "jumpToLyricBegin": "Jump to begining of current lyric when seeking",
+      "perventSuspend": "Prevent system sleep during playback"
     },
     "theme": {
       "auto": "Auto",
@@ -320,11 +357,29 @@
         "tlyric": "Translation",
         "romalrc": "Transliteration"
       },
+      "font": "Font Settings",
       "fontSize": "Font Size (px)",
+      "textAlign": {
+        "text": "Text Alignment",
+        "start": "Left",
+        "center": "Center",
+        "end": "Right"
+      },
+      "useMask": {
+        "text": "Enable lyrics mask",
+        "desc": "Enable a transparent gradient effect on the top and bottom edges of the lyrics page"
+      },
       "staticTime": {
         "text": "Mouse Hover Timeout",
-        "desc": "After locking, lyrics fade after this duration (ms). Not supported on Linux."
-      }
+        "desc": "After locking, lyrics fade after this duration (ms),",
+        "desc2": "set to 0 to disable this feature, not effective on Linux"
+      },
+      "showButtonWhenLock": {
+        "text": "Show Unlock Button When Locked",
+        "desc": "Enabling this will show the unlock button when the desktop lyrics window is locked,",
+        "desc2": "and enable the mouse hover to reduce window transparency feature"
+      },
+      "lyricZoom": "Zoom The Playing Lyric"
     },
     "unblock": {
       "enable": "Enable UnblockMusic",
@@ -383,6 +438,23 @@
       "login": "Logged in",
       "logout": "Logged out",
       "offline": "Offline"
+    },
+    "update": {
+      "currentVersion": "Current Version",
+      "updateCheck": "Check For Update",
+      "downloadUpdate": "Download Update",
+      "cancelDownload": "Cancel Download",
+      "goToDownload": "Go To Download",
+      "updateChecking": "Checking For Update",
+      "latestVersion": "Latest Version",
+      "changelog": "Change Log",
+      "updateAvailable": "UpdateAvailable",
+      "updating": "Updating"
+    },
+    "playerTheme": {
+      "title": "Player Theme",
+      "common": "Classic Mode",
+      "creative": "Creative Mode"
     }
   },
   "toast": {

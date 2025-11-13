@@ -27,20 +27,20 @@
         <div class="tab" :class="{ active: tab === 'general' }" @click="updateTab(0)">{{
           $t('settings.nav.general')
         }}</div>
-        <div class="tab" :class="{ active: tab === 'appearance' }" @click="updateTab(1)">{{
-          $t('settings.nav.appearance')
-        }}</div>
-        <div class="tab" :class="{ active: tab === 'lyric' }" @click="updateTab(2)">{{
+        <div class="tab" :class="{ active: tab === 'lyric' }" @click="updateTab(1)">{{
           $t('settings.nav.lyricSetting')
         }}</div>
-        <div class="tab" :class="{ active: tab === 'music' }" @click="updateTab(3)">{{
+        <div class="tab" :class="{ active: tab === 'music' }" @click="updateTab(2)">{{
           $t('settings.nav.music')
         }}</div>
-        <div class="tab" :class="{ active: tab === 'unblock' }" @click="updateTab(4)">{{
+        <div class="tab" :class="{ active: tab === 'unblock' }" @click="updateTab(3)">{{
           $t('settings.nav.unblock')
         }}</div>
-        <div class="tab" :class="{ active: tab === 'shortcut' }" @click="updateTab(5)">{{
+        <div class="tab" :class="{ active: tab === 'shortcut' }" @click="updateTab(4)">{{
           $t('settings.nav.shortcut')
+        }}</div>
+        <div class="tab" :class="{ active: tab === 'update' }" @click="updateTab(5)">{{
+          $t('settings.nav.update')
         }}</div>
       </div>
     </div>
@@ -49,83 +49,18 @@
         <div v-show="tab === 'general'" key="general">
           <div class="item">
             <div class="left">
-              <div class="title">{{ $t('settings.general.language.text') }}</div>
+              <div class="title">{{ $t('settings.general.showBanner') }}</div>
             </div>
             <div class="right">
-              <select v-model="selectLanguage">
-                <option value="zh">{{ $t('settings.general.language.zhHans') }}</option>
-                <option value="zht">{{ $t('settings.general.language.zhHant') }}</option>
-                <option value="en">{{ $t('settings.general.language.en') }}</option>
-              </select>
-            </div>
-          </div>
-          <div class="item">
-            <div class="left">{{ $t('settings.general.musicQuality.text') }}</div>
-            <div class="right">
-              <select v-model="musicQuality">
-                <option value="128000"
-                  >{{ $t('settings.general.musicQuality.low') }} - 128Kbps</option
-                >
-                <option value="192000"
-                  >{{ $t('settings.general.musicQuality.medium') }} - 192Kbps</option
-                >
-                <option value="320000"
-                  >{{ $t('settings.general.musicQuality.high') }} - 320Kbps</option
-                >
-                <option value="flac"
-                  >{{ $t('settings.general.musicQuality.lossless') }} - FLAC</option
-                >
-                <option value="999000">Hi-Res</option>
-              </select>
-            </div>
-          </div>
-          <div v-if="!isMac" class="item">
-            <div class="left">
-              <div class="title">{{ $t('settings.general.closeAppOption.text') }}</div>
-            </div>
-            <div class="right">
-              <select v-model="selectOptions">
-                <option value="ask">{{ $t('settings.general.closeAppOption.ask') }}</option>
-                <option value="minimizeToTray">{{
-                  $t('settings.general.closeAppOption.minimizeToTray')
-                }}</option>
-                <option value="exit">{{ $t('settings.general.closeAppOption.exit') }}</option>
-              </select>
-            </div>
-          </div>
-          <div class="item">
-            <div class="left">
-              <div class="title">{{ $t('settings.general.showTimeOrID.text') }}</div>
-            </div>
-            <div class="right">
-              <select v-model="showTrackInfo">
-                <option value="time">{{ $t('settings.general.showTimeOrID.time') }}</option>
-                <option value="ID">{{ $t('settings.general.showTimeOrID.ID') }}</option>
-              </select>
-            </div>
-          </div>
-          <div class="item">
-            <div class="left">
-              <div class="title">{{ $t('settings.general.outputDevice.text') }}</div>
-            </div>
-            <div class="right">
-              <select v-model="selectedOutputDevice">
-                <option
-                  v-for="device in allOutputDevices"
-                  :key="device.deviceId"
-                  :value="device.deviceId"
-                  :selected="device.deviceId == selectedOutputDevice"
-                  >{{ device.label }}</option
-                >
-              </select>
-            </div>
-          </div>
-          <div class="item">
-            <div class="left">
-              <div class="title">{{ $t('player.resetPlayer') }}</div>
-            </div>
-            <div class="right">
-              <button @click="resetPlayer()">确定</button>
+              <div class="toggle">
+                <input
+                  id="showBanner"
+                  v-model="general.showBanner"
+                  type="checkbox"
+                  name="showBanner"
+                />
+                <label for="showBanner"></label>
+              </div>
             </div>
           </div>
           <div v-if="isElectron && isLinux" class="item">
@@ -136,7 +71,7 @@
               <div class="toggle">
                 <input
                   id="linux-title-bar"
-                  v-model="useLinuxTitleBar"
+                  v-model="useCustomTitlebar"
                   type="checkbox"
                   name="linux-title-bar"
                 />
@@ -144,16 +79,32 @@
               </div>
             </div>
           </div>
-          <div class="version-info">
-            <p class="author">
-              MADE BY
-              <a href="https://github.com/stark81" target="_blank">stark81</a>
-            </p>
-            <p class="version">{{ appVersion }}</p>
-          </div>
-        </div>
-        <div v-show="tab === 'appearance'" key="appearance">
           <div class="item">
+            <div class="left">
+              <div class="title">{{ $t('settings.general.language.text') }}</div>
+            </div>
+            <div class="right">
+              <CustomSelect v-model="selectLanguage" :options="languageOption" />
+            </div>
+          </div>
+          <div v-if="!isMac" class="item">
+            <div class="left">
+              <div class="title">{{ $t('settings.general.closeAppOption.text') }}</div>
+            </div>
+            <div class="right">
+              <CustomSelect v-model="closeAppOption" :options="closeOptions" />
+            </div>
+          </div>
+          <div v-if="!isMac" class="item">
+            <div class="left">
+              <div class="title">{{ $t('settings.general.trayColor.text') }}</div>
+            </div>
+            <div class="right">
+              <CustomSelect v-model="trayColor" :options="trayColorOptions" />
+            </div>
+          </div>
+          <div class="item">
+            <div>{{ $t('settings.nav.appearance') }}：</div>
             <div
               class="appearance"
               :class="{ selected: appearance === 'light' }"
@@ -251,6 +202,56 @@
             </div>
             <div class="item">
               <div class="left">
+                <div class="title">{{ $t('settings.osdLyric.showButtonWhenLock.text') }}</div>
+                <div class="description">
+                  {{ $t('settings.osdLyric.showButtonWhenLock.desc') }}
+                </div>
+                <div class="description">
+                  {{ $t('settings.osdLyric.showButtonWhenLock.desc2') }}
+                </div>
+              </div>
+              <div class="right">
+                <div class="toggle">
+                  <input
+                    id="showButtonWhenLock"
+                    v-model="showButtonWhenLock"
+                    type="checkbox"
+                    name="showButtonWhenLock"
+                  />
+                  <label for="showButtonWhenLock"></label>
+                </div>
+              </div>
+            </div>
+            <div class="item">
+              <div class="left">
+                <div class="title"> {{ $t('settings.osdLyric.staticTime.text') }} </div>
+                <div class="description"> {{ $t('settings.osdLyric.staticTime.desc') }} </div>
+                <div class="description"> {{ $t('settings.osdLyric.staticTime.desc2') }} </div>
+              </div>
+              <div class="right">
+                <input
+                  v-model="staticTime"
+                  :disabled="!showButtonWhenLock"
+                  type="number"
+                  step="100"
+                  class="text-input margin-right-0"
+                />
+              </div>
+            </div>
+            <div class="item">
+              <div class="left">
+                <div class="title"> {{ $t('settings.osdLyric.font') }} </div>
+              </div>
+              <div class="right">
+                <CustomSelect v-model="font" :options="fontList" :searchable="true">
+                  <template #option="{ option }">
+                    <div :style="{ fontFamily: option.value as string }">{{ option.label }}</div>
+                  </template>
+                </CustomSelect>
+              </div>
+            </div>
+            <div class="item">
+              <div class="left">
                 <div class="title"> {{ $t('settings.osdLyric.fontSize') }} </div>
               </div>
               <div class="right">
@@ -264,27 +265,10 @@
             </div>
             <div class="item">
               <div class="left">
-                <div class="title"> {{ $t('settings.osdLyric.staticTime.text') }} </div>
-                <div class="description"> {{ $t('settings.osdLyric.staticTime.desc') }} </div>
-              </div>
-              <div class="right">
-                <input
-                  v-model="staticTime"
-                  type="number"
-                  step="100"
-                  class="text-input margin-right-0"
-                />
-              </div>
-            </div>
-            <div class="item">
-              <div class="left">
                 <div class="title">{{ $t('settings.osdLyric.type.text') }}</div>
               </div>
               <div class="right">
-                <select v-model="typeOption">
-                  <option value="small">{{ $t('settings.osdLyric.type.small') }}</option>
-                  <option value="normal">{{ $t('settings.osdLyric.type.normal') }}</option>
-                </select>
+                <CustomSelect v-model="type" :options="typeOptions" />
               </div>
             </div>
             <div class="item">
@@ -293,10 +277,7 @@
                 <div class="description">{{ $t('settings.osdLyric.mode.desc') }}</div>
               </div>
               <div class="right">
-                <select v-model="modeOption">
-                  <option value="oneLine">{{ $t('settings.osdLyric.mode.oneLine') }}</option>
-                  <option value="twoLines">{{ $t('settings.osdLyric.mode.twoLines') }}</option>
-                </select>
+                <CustomSelect v-model="mode" :options="modeOptions" />
               </div>
             </div>
             <div class="item">
@@ -304,15 +285,7 @@
                 <div class="title">{{ $t('settings.osdLyric.translationMode.text') }}</div>
               </div>
               <div class="right">
-                <select v-model="translationOption">
-                  <option value="none">{{ $t('settings.osdLyric.translationMode.none') }}</option>
-                  <option value="tlyric">{{
-                    $t('settings.osdLyric.translationMode.tlyric')
-                  }}</option>
-                  <option value="romalrc">{{
-                    $t('settings.osdLyric.translationMode.romalrc')
-                  }}</option>
-                </select>
+                <CustomSelect v-model="translationMode" :options="translateOptions" />
               </div>
             </div>
             <div class="item">
@@ -365,6 +338,18 @@
           <div v-show="lyricTab === 'lyric'">
             <div class="item">
               <div class="left">
+                <div class="title">{{ $t('settings.osdLyric.useMask.text') }}</div>
+                <div class="description">{{ $t('settings.osdLyric.useMask.desc') }}</div>
+              </div>
+              <div class="right">
+                <div class="toggle">
+                  <input id="useMask" v-model="useMask" type="checkbox" name="useMask" />
+                  <label for="useMask"></label>
+                </div>
+              </div>
+            </div>
+            <div class="item">
+              <div class="left">
                 <div class="title">{{ $t('settings.osdLyric.isWordByWord') }}</div>
               </div>
               <div class="right">
@@ -381,7 +366,18 @@
             </div>
             <div class="item">
               <div class="left">
-                <div class="title"> {{ $t('settings.osdLyric.fontSize') }} </div>
+                <div class="title">{{ $t('settings.osdLyric.lyricZoom') }}</div>
+              </div>
+              <div class="right">
+                <div class="toggle">
+                  <input id="isZoom" v-model="isZoom" type="checkbox" name="isZoom" />
+                  <label for="isZoom"></label>
+                </div>
+              </div>
+            </div>
+            <div class="item">
+              <div class="left">
+                <div class="title">{{ $t('settings.osdLyric.fontSize') }}</div>
               </div>
               <div class="right">
                 <input
@@ -394,18 +390,26 @@
             </div>
             <div class="item">
               <div class="left">
+                <div class="title">{{ $t('settings.osdLyric.textAlign.text') }}</div>
+              </div>
+              <div class="right">
+                <CustomSelect v-model="textAlign" :options="alignOptions" />
+              </div>
+            </div>
+            <div class="item">
+              <div class="left">
                 <div class="title">{{ $t('settings.osdLyric.translationMode.text') }}</div>
               </div>
               <div class="right">
-                <select v-model="nTranslationOption">
-                  <option value="none">{{ $t('settings.osdLyric.translationMode.none') }}</option>
-                  <option value="tlyric">{{
-                    $t('settings.osdLyric.translationMode.tlyric')
-                  }}</option>
-                  <option value="rlyric">{{
-                    $t('settings.osdLyric.translationMode.romalrc')
-                  }}</option>
-                </select>
+                <CustomSelect v-model="nTranslationMode" :options="nTranslateOptions" />
+              </div>
+            </div>
+            <div class="item">
+              <div class="left">
+                <div class="title">{{ $t('settings.general.lyricBackground.text') }}</div>
+              </div>
+              <div class="right">
+                <CustomSelect v-model="lyricBackground" :options="lrcBgOptions" />
               </div>
             </div>
           </div>
@@ -507,7 +511,7 @@
             </div>
           </div>
         </div>
-        <div v-if="isElectron" v-show="tab === 'music'" key="music">
+        <div v-show="tab === 'music'" key="music">
           <div class="lyric-tab">
             <button
               :class="{ 'lyric-button': true, 'lyric-button--selected': musicTab === 'netease' }"
@@ -515,6 +519,7 @@
               >{{ $t('settings.nav.netease') }}</button
             >
             <button
+              v-if="isElectron"
               :class="{ 'lyric-button': true, 'lyric-button--selected': musicTab === 'local' }"
               @click="musicTab = 'local'"
               >{{ $t('settings.nav.local') }}</button
@@ -523,6 +528,11 @@
               :class="{ 'lyric-button': true, 'lyric-button--selected': musicTab === 'stream' }"
               @click="musicTab = 'stream'"
               >{{ $t('settings.nav.stream') }}</button
+            >
+            <button
+              :class="{ 'lyric-button': true, 'lyric-button--selected': musicTab === 'player' }"
+              @click="musicTab = 'player'"
+              >{{ $t('settings.nav.player') }}</button
             >
           </div>
           <div v-show="musicTab === 'netease'">
@@ -547,14 +557,13 @@
                 <div class="title">{{ $t('settings.autoCacheTrack.sizeLimit') }}</div>
               </div>
               <div class="right">
-                <select v-model="autoCacheTrack.sizeLimit">
-                  <option :value="false">{{ $t('settings.autoCacheTrack.noLimit') }}</option>
-                  <option :value="512"> 500M </option>
-                  <option :value="1024"> 1G </option>
-                  <option :value="2048"> 2G </option>
-                  <option :value="4096"> 4G </option>
-                  <option :value="8192"> 8G </option>
-                </select>
+                <CustomSelect v-model="autoCacheTrack.sizeLimit" :options="sizeLimitOptions" />
+              </div>
+            </div>
+            <div class="item">
+              <div class="left">{{ $t('settings.general.musicQuality.text') }}</div>
+              <div class="right">
+                <CustomSelect v-model="musicQuality" :options="musicQualityOptions" />
               </div>
             </div>
             <div class="item">
@@ -567,13 +576,13 @@
                 >
               </div>
               <div class="right">
-                <button style="width: 150px" @click="deleteCacheTracks">{{
+                <button class="clear-cache" @click="deleteCacheTracks">{{
                   $t('settings.autoCacheTrack.clearCache')
                 }}</button>
               </div>
             </div>
           </div>
-          <div v-show="musicTab === 'local'">
+          <div v-if="isElectron" v-show="musicTab === 'local'">
             <div class="item">
               <div class="left">
                 <div class="title">{{ $t('localMusic.enableLocalMusic') }}</div>
@@ -602,46 +611,16 @@
                 <button @click="deleteLocalMusic">确定</button>
               </div>
             </div>
-            <div class="item">
+            <div class="item no-flex">
               <div class="left">
-                <div class="title">
-                  {{ $t('localMusic.embeddedInformation') }}
-                </div>
+                <div class="title">{{ $t('localMusic.trackInfoOrder.text') }}</div>
+                <div class="description">{{ $t('localMusic.trackInfoOrder.desc') }}</div>
               </div>
-              <div class="right">
-                <div class="toggle">
-                  <input
-                    id="inner-info"
-                    v-model="useInnerInfoFirst"
-                    type="checkbox"
-                    disabled
-                    name="inner-info"
-                  />
-                  <label for="inner-info"></label>
-                </div>
-              </div>
-            </div>
-            <div class="item">
-              <div class="left">
-                <div class="title">
-                  {{ $t('localMusic.replayGain.text') }}
-                </div>
-                <div class="description">
-                  {{ $t('localMusic.replayGain.desc') }}
-                </div>
-              </div>
-              <div class="right">
-                <div class="toggle">
-                  <input
-                    id="replay-gain"
-                    v-model="replayGain"
-                    type="checkbox"
-                    name="replay-gain"
-                    disabled
-                  />
-                  <label for="replay-gain"></label>
-                </div>
-              </div>
+              <VueDraggable v-model="trackInfoOrder">
+                <div v-for="(item, index) in trackInfoOrder" :key="item" class="info-order">{{
+                  (index + 1).toString() + ' - ' + $t(`localMusic.trackInfoOrder.${item}`)
+                }}</div>
+              </VueDraggable>
             </div>
           </div>
           <div v-show="musicTab === 'stream'">
@@ -658,23 +637,94 @@
             </div>
             <div class="item">
               <div>{{ $t('settings.stream.service') }}：</div>
+              <!-- :class="{ itemSelected: service.selected }" -->
               <div
-                v-for="service of servers"
-                :key="service"
+                v-for="service of services"
+                :key="service.name"
                 :title="serviceTitle(service)"
                 class="stream-item"
-                :class="{ itemSelected: select === service }"
-                @click="select = service"
                 @click.right="loginOrlogout(service)"
               >
-                <img :src="getImagePath(service)" />
+                <img :src="getImagePath(service.name)" />
                 <div class="service-name">
                   <div
                     class="service-status"
-                    :title="$t(`settings.stream.${status[service]}`)"
+                    :title="$t(`settings.stream.${service.status}`)"
                     :style="{ background: getStatusColor(service) }"
                   ></div>
-                  <div>{{ service }}</div>
+                  <div>{{ service.name }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div v-show="musicTab === 'player'">
+            <div class="item">
+              <div class="left">
+                <div class="title">{{ $t('settings.general.showTimeOrID.text') }}</div>
+              </div>
+              <div class="right">
+                <CustomSelect v-model="showTrackInfo" :options="trackInfoOptions" />
+              </div>
+            </div>
+            <div class="item">
+              <div class="left">
+                <div class="title">{{ $t('player.fade.fadeDuration') }}</div>
+                <div class="description">{{ $t('player.fade.fadeDurationDesc') }}</div>
+              </div>
+              <div class="right">
+                <input
+                  v-model.number="general.fadeDuration"
+                  type="number"
+                  step="0.1"
+                  class="text-input margin-right-0"
+                />
+              </div>
+            </div>
+            <div class="item">
+              <div class="left">
+                <div class="title">{{ $t('settings.general.outputDevice.text') }}</div>
+              </div>
+              <div class="right">
+                <CustomSelect v-model="selectedOutputDevice" :options="devicesOptions" />
+              </div>
+            </div>
+            <div class="item">
+              <div class="left">
+                <div class="title">{{ $t('player.resetPlayer') }}</div>
+              </div>
+              <div class="right">
+                <button @click="resetPlayer()">确定</button>
+              </div>
+            </div>
+            <div class="item">
+              <div class="left">
+                <div class="title">{{ $t('settings.general.jumpToLyricBegin') }}</div>
+              </div>
+              <div class="right">
+                <div class="toggle">
+                  <input
+                    id="jump-to-lyric-begin"
+                    v-model="general.jumpToLyricBegin"
+                    type="checkbox"
+                    name="jump-to-lyric-begin"
+                  />
+                  <label for="jump-to-lyric-begin"></label>
+                </div>
+              </div>
+            </div>
+            <div v-if="isElectron" class="item">
+              <div class="left">
+                <div class="title">{{ $t('settings.general.perventSuspend') }}</div>
+              </div>
+              <div class="right">
+                <div class="toggle">
+                  <input
+                    id="pervent-suspend"
+                    v-model="general.preventSuspension"
+                    type="checkbox"
+                    name="pervent-suspend"
+                  />
+                  <label for="pervent-suspend"></label>
                 </div>
               </div>
             </div>
@@ -719,17 +769,10 @@
               <div class="title">{{ $t('settings.unblock.sourceSearchMode.text') }}</div>
             </div>
             <div class="right">
-              <select v-model="unblockNeteaseMusic.orderFirst">
-                <option :value="true">{{
-                  $t('settings.unblock.sourceSearchMode.orderFirst')
-                }}</option>
-                <option :value="false">{{
-                  $t('settings.unblock.sourceSearchMode.speedFirst')
-                }}</option>
-              </select>
+              <CustomSelect v-model="unblockNeteaseMusic.orderFirst" :options="orderFirstOptions" />
             </div>
           </div>
-          <!-- <div class="item">
+          <div class="item">
             <div class="left">
               <div class="title">{{ $t('settings.unblock.source.text') }}</div>
               <div class="description">
@@ -751,11 +794,11 @@
               <input
                 v-model="unblockSource"
                 class="text-input margin-right-0"
-                placeholder="例 bilibili, kuwo"
+                placeholder="例 bodian, bilibili, kuwo"
                 @input="updateUnblockSource"
               />
             </div>
-          </div> -->
+          </div>
           <div class="item">
             <div class="left">
               <div class="title">{{ $t('settings.unblock.jooxCookie.text') }}</div>
@@ -872,6 +915,56 @@
             $t('settings.shortcut.resetShortcut')
           }}</button>
         </div>
+        <div v-if="isElectron" v-show="tab === 'update'" key="update">
+          <div class="item">
+            <div class="left">
+              <div class="title"
+                >{{ $t('settings.update.currentVersion') + '：' + appVersion }}
+                <label v-if="latestVersion?.isUpdateAvailable" class="update-ext">{{
+                  $t(isDownloading ? 'settings.update.updating' : 'settings.update.updateAvailable')
+                }}</label>
+              </div>
+            </div>
+            <div class="right">
+              <button
+                :class="{ loading: updateStatus, disabled: isDownloading }"
+                @click="handleUpdate"
+                >{{
+                  latestVersion?.isUpdateAvailable
+                    ? $t(isMac ? 'settings.update.goToDownload' : 'settings.update.downloadUpdate')
+                    : $t(
+                        updateStatus
+                          ? 'settings.update.updateChecking'
+                          : 'settings.update.updateCheck'
+                      )
+                }}</button
+              >
+            </div>
+          </div>
+          <div class="item">
+            <div class="left">
+              <div class="title">{{
+                $t('settings.update.latestVersion') +
+                '：' +
+                (latestVersion?.updateInfo?.version || 'unknown')
+              }}</div>
+            </div>
+            <div class="right">
+              {{
+                Utils.formatDate(
+                  latestVersion?.updateInfo?.releaseDate || '',
+                  'YYYY-MM-DD HH:mm:ss'
+                )
+              }}
+            </div>
+          </div>
+          <div class="item">
+            <div class="left">
+              <div class="title">{{ $t('settings.update.changelog') }}：</div>
+            </div>
+          </div>
+          <LatestVersion />
+        </div>
       </div>
     </div>
   </div>
@@ -886,12 +979,15 @@ import { usePlayerStore } from '../store/player'
 import { useLocalMusicStore } from '../store/localMusic'
 import { useNormalStateStore } from '../store/state'
 import { useOsdLyricStore } from '../store/osdLyric'
-import { useStreamMusicStore, servers, streamServer } from '../store/streamingMusic'
+import { useStreamMusicStore, serviceType, serviceName } from '../store/streamingMusic'
 import { useDataStore } from '../store/data'
 import { storeToRefs } from 'pinia'
 import { doLogout } from '../utils/auth'
 import SvgIcon from '../components/SvgIcon.vue'
+import CustomSelect from '../components/CustomSelect.vue'
+import LatestVersion from '../components/LatestVersion.vue'
 import Utils from '../utils'
+import { VueDraggable } from 'vue-draggable-plus'
 // @ts-ignore
 import imageUrl from '../utils/settingImg.dataurl?raw'
 import { useRouter } from 'vue-router'
@@ -910,29 +1006,37 @@ const {
   enableGlobalShortcut,
   normalLyric
 } = storeToRefs(settingsStore)
-const { scanDir, replayGain, useInnerInfoFirst, enble } = toRefs(localMusic.value)
-const { showTrackTimeOrID, useCustomTitlebar, language, musicQuality, closeAppOption } = toRefs(
-  general.value
-)
+const { scanDir, enble, trackInfoOrder } = toRefs(localMusic.value)
+const {
+  showTrackTimeOrID,
+  useCustomTitlebar,
+  language,
+  musicQuality,
+  closeAppOption,
+  trayColor,
+  lyricBackground
+} = toRefs(general.value)
 const { appearance, colors } = toRefs(theme.value)
 const customizeColor = computed(() => colors.value[4])
 const { showLyric, showControl, lyricWidth, scrollRate, enableExtension } = toRefs(tray.value)
-const { nFontSize, isNWordByWord, nTranslationMode } = toRefs(normalLyric.value)
+const { nFontSize, isNWordByWord, nTranslationMode, textAlign, useMask, isZoom } = toRefs(
+  normalLyric.value
+)
 
 const streamMusicStore = useStreamMusicStore()
-const { enable, status, select } = storeToRefs(streamMusicStore)
+const { enable, services } = storeToRefs(streamMusicStore)
 const { handleStreamLogout } = streamMusicStore
 
 const stateStore = useNormalStateStore()
-const { extensionCheckResult } = toRefs(stateStore)
-const { showToast } = stateStore
+const { extensionCheckResult, updateStatus, latestVersion, isDownloading, fontList } =
+  toRefs(stateStore)
+const { showToast, checkUpdate, getFontList } = stateStore
 
 const dataStore = useDataStore()
 const { user } = storeToRefs(dataStore)
 
 const osdLyric = useOsdLyricStore()
 const {
-  // alwaysOnTop,
   isLock,
   type,
   mode,
@@ -943,7 +1047,9 @@ const {
   playedLrcColor,
   unplayLrcColor,
   textShadow,
-  staticTime
+  staticTime,
+  showButtonWhenLock,
+  font
 } = storeToRefs(osdLyric)
 
 const playerStore = usePlayerStore()
@@ -957,7 +1063,7 @@ const { restoreDefaultShortcuts, updateShortcut } = useSettingsStore()
 
 const cacheTracksInfo = reactive({ length: 0, size: 0 })
 
-const getImagePath = (platform: streamServer) => {
+const getImagePath = (platform: serviceName) => {
   return new URL(`../assets/images/${platform}.png`, import.meta.url).href
 }
 
@@ -984,60 +1090,44 @@ const cacheSize = computed(() => {
   }
 })
 
-const serviceTitle = (platform: streamServer) => {
-  const statusType = status.value[platform]
-  const title = statusType === 'logout' ? '登陆' : '登出'
+const serviceTitle = (platform: serviceType) => {
+  const title = platform.status === 'logout' ? '登陆' : '登出'
   return `单击选择，右击选择并${title}`
 }
 
-const loginOrlogout = (platform: streamServer) => {
-  select.value = platform
-  const statusType = status.value[platform]
-  if (statusType === 'logout') {
-    router.push('/streamLogin')
-  } else {
-    if (confirm(`确定登出${platform}吗？`)) {
-      handleStreamLogout()
-      // status.value[platform] = 'logout'
-      // if ()
+// const handleSelect = (platform: serviceType) => {
+//   services.value.forEach((s) => {
+//     if (s.name === platform.name) {
+//       platform.selected = true
+//     } else {
+//       s.selected = false
+//     }
+//   })
+// }
+
+const handleUpdate = () => {
+  if (isDownloading.value) return
+  if (latestVersion.value?.isUpdateAvailable) {
+    if (isMac) {
+      const url = `https://github.com/stark81/VutronMusic/releases/tag/${latestVersion.value!.updateInfo.releaseName}`
+      openOnBrowser(url)
+    } else {
+      window.mainApi?.send('downloadUpdate')
     }
+  } else {
+    checkUpdate()
   }
 }
 
-const typeOption = computed({
-  get: () => type.value,
-  set: (value) => {
-    type.value = value
+const loginOrlogout = (platform: serviceType) => {
+  if (platform.status === 'logout') {
+    router.push(`/streamLogin/${platform.name}`)
+  } else {
+    if (confirm(`确定登出${platform.name}吗？`)) {
+      handleStreamLogout(platform.name)
+    }
   }
-})
-
-const modeOption = computed({
-  get: () => mode.value,
-  set: (value) => {
-    mode.value = value
-  }
-})
-
-const translationOption = computed({
-  get: () => translationMode.value,
-  set: (value) => {
-    translationMode.value = value
-  }
-})
-
-const nTranslationOption = computed({
-  get: () => nTranslationMode.value,
-  set: (value) => {
-    nTranslationMode.value = value
-  }
-})
-
-const useLinuxTitleBar = computed({
-  get: () => useCustomTitlebar.value,
-  set: (value) => {
-    useCustomTitlebar.value = value
-  }
-})
+}
 
 const shortcutInput = ref({
   id: '',
@@ -1046,10 +1136,9 @@ const shortcutInput = ref({
 })
 
 const recordedShortcut = ref<any[]>([])
-
 const mainStyle = ref({})
+const { locale, t } = useI18n()
 
-const { locale } = useI18n()
 const selectLanguage = computed({
   get: () => language.value,
   set: (value) => {
@@ -1058,14 +1147,93 @@ const selectLanguage = computed({
   }
 })
 
-const selectOptions = computed({
-  get: () => {
-    return closeAppOption.value
-  },
-  set: (value) => {
-    closeAppOption.value = value
-  }
+const languageOption = computed(() => [
+  { label: t('settings.general.language.zhHans'), value: 'zh' },
+  { label: t('settings.general.language.zhHant'), value: 'zht' },
+  { label: t('settings.general.language.en'), value: 'en' }
+])
+
+const closeOptions = computed(() => [
+  { label: t('settings.general.closeAppOption.ask'), value: 'ask' },
+  { label: t('settings.general.closeAppOption.minimizeToTray'), value: 'minimizeToTray' },
+  { label: t('settings.general.closeAppOption.exit'), value: 'exit' }
+])
+
+const trayColorOptions = computed(() => [
+  { label: t('settings.general.trayColor.color'), value: 0 },
+  { label: t('settings.general.trayColor.white'), value: 1 },
+  { label: t('settings.general.trayColor.black'), value: 2 },
+  { label: t('settings.general.trayColor.auto'), value: 3 }
+])
+
+const typeOptions = computed(() => [
+  { label: t('settings.osdLyric.type.small'), value: 'small' },
+  { label: t('settings.osdLyric.type.normal'), value: 'normal' }
+])
+
+const modeOptions = computed(() => [
+  { label: t('settings.osdLyric.mode.oneLine'), value: 'oneLine' },
+  { label: t('settings.osdLyric.mode.twoLines'), value: 'twoLines' }
+])
+
+const translateOptions = computed(() => [
+  { label: t('settings.osdLyric.translationMode.none'), value: 'none' },
+  { label: t('settings.osdLyric.translationMode.tlyric'), value: 'tlyric' },
+  { label: t('settings.osdLyric.translationMode.romalrc'), value: 'rlyric' }
+])
+
+const alignOptions = computed(() => [
+  { label: t('settings.osdLyric.textAlign.start'), value: 'start' },
+  { label: t('settings.osdLyric.textAlign.center'), value: 'center' },
+  { label: t('settings.osdLyric.textAlign.end'), value: 'end' }
+])
+
+const nTranslateOptions = computed(() => [
+  { label: t('settings.osdLyric.translationMode.none'), value: 'none' },
+  { label: t('settings.osdLyric.translationMode.tlyric'), value: 'tlyric' },
+  { label: t('settings.osdLyric.translationMode.romalrc'), value: 'rlyric' }
+])
+
+const lrcBgOptions = computed(() => [
+  { label: t('settings.general.lyricBackground.close'), value: 'none' },
+  { label: t('settings.general.lyricBackground.true'), value: 'true' },
+  { label: t('settings.general.lyricBackground.blur'), value: 'blur' },
+  { label: t('settings.general.lyricBackground.dynamic'), value: 'dynamic' }
+])
+
+const sizeLimitOptions = computed(() => [
+  { label: t('settings.autoCacheTrack.noLimit'), value: false },
+  { label: '500M', value: 512 },
+  { label: '1G', value: 1024 },
+  { label: '2G', value: 2048 },
+  { label: '4G', value: 4096 },
+  { label: '8G', value: 8192 }
+])
+
+const musicQualityOptions = computed(() => [
+  { label: t('settings.general.musicQuality.low') + ' - 128Kbps', value: 128000 },
+  { label: t('settings.general.musicQuality.medium') + ' - 192Kbps', value: 192000 },
+  { label: t('settings.general.musicQuality.high') + ' - 320Kbps', value: 320000 },
+  { label: t('settings.general.musicQuality.lossless') + ' - FLAC', value: 'flac' },
+  { label: 'Hi-Res', value: 999000 }
+])
+
+const trackInfoOptions = computed(() => [
+  { label: t('settings.general.showTimeOrID.time'), value: 'time' },
+  { label: t('settings.general.showTimeOrID.ID'), value: 'ID' }
+])
+
+const devicesOptions = computed(() => {
+  return allOutputDevices.value.map((device) => ({
+    label: device.label || 'Unknown Device',
+    value: device.deviceId
+  }))
 })
+
+const orderFirstOptions = computed(() => [
+  { label: t('settings.unblock.sourceSearchMode.orderFirst'), value: true },
+  { label: t('settings.unblock.sourceSearchMode.speedFirst'), value: false }
+])
 
 const currentTheme = ref(
   (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') as Theme
@@ -1084,20 +1252,25 @@ const selectedOutputDevice = computed({
     const isValidDevice = allOutputDevices.value.find(
       (device) => device.deviceId === outputDevice.value
     )
-    if (outputDevice.value === undefined || isValidDevice === undefined) return ''
+    if (
+      outputDevice.value === undefined ||
+      // outputDevice.value === 'default' ||
+      isValidDevice === undefined
+    )
+      return allOutputDevices.value[0]?.deviceId
     return outputDevice.value
   },
   set: (deviceId) => {
     if (deviceId === outputDevice.value || deviceId === undefined) return
-    outputDevice.value = deviceId
+    outputDevice.value = deviceId === 'default' ? '' : deviceId
   }
 })
 
-const allOutputDevices = ref<any[]>([])
+const allOutputDevices = ref<MediaDeviceInfo[]>([])
 const getAllOutputDevices = () => {
-  navigator.mediaDevices.enumerateDevices().then((devices: any[]) => {
+  navigator.mediaDevices.enumerateDevices().then((devices: MediaDeviceInfo[]) => {
     allOutputDevices.value = devices.filter(
-      (device: any) => device.kind === 'audiooutput' && device.deviceId !== 'default'
+      (device: MediaDeviceInfo) => device.kind === 'audiooutput' // && device.deviceId !== 'default'
     )
     if (allOutputDevices.value.length === 0 || allOutputDevices.value[0].label === '') {
       allOutputDevices.value = []
@@ -1109,7 +1282,7 @@ const tab = ref('general')
 const lyricTab = ref(isWindows ? 'lyric' : 'trayLyric')
 const musicTab = ref('netease')
 const updateTab = (index: number) => {
-  const tabs = ['general', 'appearance', 'lyric', 'music', 'unblock', 'shortcut'] // 'unblock'
+  const tabs = ['general', 'lyric', 'music', 'unblock', 'shortcut', 'update'] // 'appearance'
   const tabName = tabs[index]
   tab.value = tabName
   slideTop.value = index * 40
@@ -1117,7 +1290,7 @@ const updateTab = (index: number) => {
 const slideTop = ref(0)
 
 const getCacheTracksInfo = () => {
-  window.mainApi.invoke('getCacheTracksInfo').then((res) => {
+  window.mainApi?.invoke('getCacheTracksInfo').then((res) => {
     cacheTracksInfo.length = res.length
     cacheTracksInfo.size = res.size
   })
@@ -1128,7 +1301,7 @@ watch(currentTrack, () => {
 })
 
 const chooseDir = () => {
-  window.mainApi.invoke('selecteFolder').then((folderPath: string | null) => {
+  window.mainApi?.invoke('selecteFolder').then((folderPath: string | null) => {
     if (folderPath) scanDir.value = folderPath
   })
 }
@@ -1143,7 +1316,7 @@ const getVersion = () => {
 }
 
 const deleteCacheTracks = () => {
-  window.mainApi.invoke('clearCacheTracks').then((res: boolean) => {
+  window.mainApi?.invoke('clearCacheTracks').then((res: boolean) => {
     if (res) {
       showToast('清除缓存成功')
       getCacheTracksInfo()
@@ -1182,13 +1355,13 @@ const inputFontSizeDebounce = () => {
   }, 500)
 }
 
-// const unblockSource = ref(unblockNeteaseMusic.value.source)
-// const updateUnblockSource = () => {
-//   if (debounceTimeout) clearTimeout(debounceTimeout)
-//   debounceTimeout = setTimeout(() => {
-//     unblockNeteaseMusic.value.source = unblockSource.value
-//   }, 500)
-// }
+const unblockSource = ref(unblockNeteaseMusic.value.source)
+const updateUnblockSource = () => {
+  if (debounceTimeout) clearTimeout(debounceTimeout)
+  debounceTimeout = setTimeout(() => {
+    unblockNeteaseMusic.value.source = unblockSource.value
+  }, 500)
+}
 
 const inputNFontSizeValue = ref<number>(nFontSize.value)
 const inputNValue = () => {
@@ -1198,20 +1371,20 @@ const inputNValue = () => {
   }, 500)
 }
 
-const getStatusColor = (platform: streamServer) => {
+const getStatusColor = (platform: serviceType) => {
   const colorMap = {
     login: 'green',
     logout: 'red',
     offline: 'orange'
   }
-  return colorMap[status.value[platform]]
+  return colorMap[platform.status]
 }
 
 const deleteLocalMusic = () => {
   resetPlayer()
   resetLocalMusic()
   scanDir.value = ''
-  window.mainApi.send('deleteLocalMusicDB')
+  window.mainApi?.send('deleteLocalMusicDB')
 }
 
 const openOnBrowser = (url: string) => {
@@ -1342,6 +1515,7 @@ onMounted(() => {
   updatePadding(64)
   getAllOutputDevices()
   getVersion()
+  getFontList()
   // 开始监听 body 元素的属性变化
   observer.observe(document.body, {
     attributes: true,
@@ -1438,7 +1612,6 @@ onBeforeUnmount(() => {
 }
 .main-container {
   position: relative;
-  width: 100%;
   height: 100%;
   padding: 0 30px 0 180px;
   transition: all 0.3s;
@@ -1463,6 +1636,7 @@ onBeforeUnmount(() => {
     .selected {
       img {
         border: 2px solid var(--color-primary);
+        transition: border 0.3s;
       }
     }
 
@@ -1475,6 +1649,7 @@ onBeforeUnmount(() => {
   width: 100%;
   height: 16px;
   background-color: var(--color-primary);
+  transition: background-color 0.3s;
 }
 .slideBar {
   max-width: 120px;
@@ -1507,7 +1682,9 @@ onBeforeUnmount(() => {
     opacity: 1;
     color: var(--color-primary);
     margin-left: 10px;
-    transition: margin 0.3s;
+    transition:
+      margin 0.3s,
+      color 0.3s;
   }
 }
 #shortcut-table {
@@ -1529,7 +1706,6 @@ onBeforeUnmount(() => {
     padding: 8px;
     display: flex;
     align-items: center;
-    /* border: 1px solid red; */
     &:first-of-type {
       padding-left: 0;
       min-width: 128px;
@@ -1538,10 +1714,11 @@ onBeforeUnmount(() => {
   .keyboard-input {
     font-weight: 600;
     background-color: var(--color-secondary-bg);
-    padding: 8px 12px 8px 12px;
+    padding: 0 12px;
     border-radius: 0.5rem;
-    min-width: 146px;
-    min-height: 34px;
+    min-width: 164px;
+    height: 34px;
+    line-height: 34px;
     box-sizing: border-box;
     &.active {
       color: var(--color-primary);
@@ -1563,6 +1740,9 @@ onBeforeUnmount(() => {
     outline: none;
   }
 }
+.item.no-flex {
+  display: unset;
+}
 .item {
   margin-bottom: 6px;
   display: flex;
@@ -1573,10 +1753,29 @@ onBeforeUnmount(() => {
   .left {
     padding-right: 6vw;
   }
+  .info-order {
+    margin-top: 12px;
+    display: inline-block;
+    margin-right: 10px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 2px var(--color-primary) solid;
+    cursor: move;
+
+    &:last-child {
+      margin-right: unset;
+    }
+  }
   .title {
     font-size: 16px;
     font-weight: 500;
     opacity: 0.78;
+
+    .update-ext {
+      margin-left: 20px;
+      font-size: 14px;
+      color: red;
+    }
   }
   .description {
     font-size: 14px;
@@ -1649,18 +1848,19 @@ onBeforeUnmount(() => {
   }
 }
 button {
+  position: relative;
   color: var(--color-text);
   background: var(--color-secondary-bg);
-  padding: 8px 12px 8px 12px;
+  padding: 8px 12px;
   font-weight: 600;
   border-radius: 8px;
-  transition: 0.2;
+  transition: 0.2s;
 }
 button.lyric-button {
   color: var(--color-text);
   background: unset;
   border-radius: 8px;
-  padding: 6px 8px;
+  // padding: 6px 8px;
   margin-bottom: 12px;
   margin-right: 10px;
   transition: 0.2s;
@@ -1678,10 +1878,37 @@ button.lyric-button--selected {
   opacity: 1;
   font-weight: 700;
 }
+button.clear-cache {
+  height: 40px;
+  padding: 0 12px;
+  box-sizing: border-box;
+  font-size: 16px;
+  font-weight: 600;
+  width: 164px;
+}
+button.loading {
+  padding-left: 42px;
+}
+button.disabled {
+  cursor: not-allowed;
+}
+button.loading::before {
+  content: '';
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  border: 2px solid transparent;
+  border-top-color: var(--color-text);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
 select {
   font-weight: 600;
   border: none;
-  min-width: 150px;
+  min-width: 164px;
   text-align: center;
   padding: 8px 12px 8px 12px;
   border-radius: 8px;
@@ -1689,6 +1916,10 @@ select {
   appearance: none;
   color: var(--color-text);
   outline: none;
+}
+
+:deep(.custom-select) {
+  min-width: 164px;
 }
 
 .toggle {
@@ -1760,13 +1991,15 @@ input.text-input {
   background: var(--color-secondary-bg);
   border: none;
   margin-right: 22px;
-  padding: 8px 12px 8px 12px;
+  padding: 0 12px;
   border-radius: 8px;
   color: var(--color-text);
   font-weight: 600;
   font-size: 16px;
-  width: 150px;
+  width: 164px;
+  height: 40px;
   text-align: center;
+  box-sizing: border-box;
 }
 
 .version-info {
@@ -1779,6 +2012,15 @@ input.text-input {
   .version {
     font-size: 0.88rem;
     opacity: 0.58;
+  }
+}
+
+@keyframes spin {
+  0% {
+    transform: translateY(-50%) rotate(0deg);
+  }
+  100% {
+    transform: translateY(-50%) rotate(360deg);
   }
 }
 </style>

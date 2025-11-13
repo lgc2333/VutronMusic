@@ -8,12 +8,15 @@
     </div>
     <div ref="mainRef" class="comment-main" :style="mainStyle">
       <VirtualScroll
+        v-if="floorComments.length"
         :list="floorComments"
-        :height="props.type === 'mv' ? 510 : 560"
+        :height="commentHeight"
         :item-size="63"
         :padding-bottom="0"
+        :above-value="5"
+        :below-value="5"
         :show-position="false"
-        :is-end="true"
+        :is-end="false"
         :load-more="() => loadFloorComment(props.beRepliedCommentId)"
       >
         <template #default="{ item, index }">
@@ -74,7 +77,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, reactive, inject } from 'vue'
+import { ref, computed, onMounted, reactive, inject, onBeforeUnmount } from 'vue'
 import { likeComment, getFloorComment, submitComment } from '../api/comment'
 import { useNormalStateStore } from '../store/state'
 import VirtualScroll from './VirtualScrollNoHeight.vue'
@@ -98,6 +101,10 @@ const props = defineProps({
   type: {
     type: String,
     default: 'music'
+  },
+  paddingRight: {
+    type: String,
+    default: '4vh'
   }
 })
 
@@ -107,6 +114,7 @@ const mainRef = ref()
 const selectedComment = ref()
 const floorCommentRef = ref()
 const currentPage = inject('currentPage', ref('floorComment'))
+const winHeight = ref(window.innerHeight)
 const floorCommentInfo = reactive({
   limit: 20,
   time: 0,
@@ -121,8 +129,12 @@ const placeholder = computed(() => {
 const containerStyle = computed(() => {
   return {
     height: props.type === 'mv' ? 'calc(100vh - 84px)' : '100vh',
-    padding: props.type === 'mv' ? '0 0 0 3.5vh' : '40px 8vh 0 4vh'
+    padding: props.type === 'mv' ? '0 0 0 3.5vh' : `40px 8vh 0 ${props.paddingRight}`
   }
+})
+
+const commentHeight = computed(() => {
+  return winHeight.value - (props.type === 'mv' ? 205 : 160)
 })
 
 const mainStyle = computed(() => {
@@ -150,6 +162,10 @@ const getImage = (url: string) => {
     url = url.replace('http:', 'https:')
   }
   return url + '?param=64y64'
+}
+
+const updateWindowHeight = () => {
+  winHeight.value = window.innerHeight
 }
 
 const router = useRouter()
@@ -276,19 +292,21 @@ const handleSubmitComment = () => {
 }
 
 onMounted(() => {
+  window.addEventListener('resize', updateWindowHeight)
   loadFloorComment(props.beRepliedCommentId)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', updateWindowHeight)
 })
 </script>
 
 <style scoped lang="scss">
 .comment-container {
-  // height: 100vh;
-  width: 100%;
   display: flex;
   flex-direction: column;
   overflow-y: hidden;
   scrollbar-width: none;
-  // padding: 40px 8vh 0 4vh;
   transition: all 0.5s;
 }
 
@@ -310,6 +328,7 @@ onMounted(() => {
     .btn {
       font-size: 16px;
       font-weight: bold;
+      color: var(--color-text);
       padding: 0 10px;
       opacity: 0.5;
       -webkit-app-region: no-drag;
@@ -397,6 +416,7 @@ onMounted(() => {
     display: flex;
     margin-left: 10px;
     align-items: center;
+    color: var(--color-text);
 
     svg {
       margin-right: 2px;

@@ -1,5 +1,7 @@
 import Store from 'electron-store'
 
+export type TrackInfoOrder = 'path' | 'online' | 'embedded'
+
 export interface TypeElectronStore {
   window: {
     width: number
@@ -29,6 +31,7 @@ export interface TypeElectronStore {
       username: string
       password: string
       salt: string
+      status: 'logout' | 'login' | 'offline'
     }
     emby: {
       url: string
@@ -36,6 +39,15 @@ export interface TypeElectronStore {
       password: string
       userId: string
       accessToken: string
+      status: 'logout' | 'login' | 'offline'
+    }
+    jellyfin: {
+      url: string
+      username: string
+      password: string
+      userId: string
+      accessToken: string
+      status: 'logout' | 'login' | 'offline'
     }
   }
 }
@@ -58,6 +70,7 @@ const store = new Store<TypeElectronStore>({
       closeAppOption: 'ask',
       useCustomTitlebar: false,
       showTray: true,
+      trayColor: 0, // 0: 彩色, 1: 白色, 2: 黑色, 3: 跟随系统
       enableGlobalShortcut: false,
       unblockNeteaseMusic: {
         enable: true,
@@ -67,6 +80,7 @@ const store = new Store<TypeElectronStore>({
         jooxCookie: '',
         qqCookie: ''
       },
+      trackInfoOrder: ['path', 'online', 'embedded'] as TrackInfoOrder[],
       autoCacheTrack: {
         enable: false,
         sizeLimit: 512 as boolean | number
@@ -125,14 +139,24 @@ const store = new Store<TypeElectronStore>({
         username: '',
         password: '',
         token: '',
-        salt: ''
+        salt: '',
+        status: 'logout'
       },
       emby: {
         url: '',
         username: '',
         password: '',
         userId: '',
-        accessToken: ''
+        accessToken: '',
+        status: 'logout'
+      },
+      jellyfin: {
+        url: '',
+        username: '',
+        password: '',
+        userId: '',
+        accessToken: '',
+        status: 'logout'
       }
     }
   }

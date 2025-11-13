@@ -1,7 +1,9 @@
 import { defineStore } from 'pinia'
-import { reactive, ref, watch } from 'vue'
+import { nextTick, reactive, ref, watch } from 'vue'
+import { type UpdateCheckResult } from 'electron-updater'
+import { type IFontInfo } from 'font-list'
 
-type TrackType = 'online' | 'local' | 'stream'
+export type TrackType = 'online' | 'local' | 'navidrome' | 'emby' | 'jellyfin'
 
 type ScrollState = {
   scrollTop: number
@@ -17,12 +19,18 @@ export const useNormalStateStore = defineStore('state', () => {
   const exploreTab = ref('playlist')
   const setConvolverModal = ref(false)
   const setPlaybackRateModal = ref(false)
+  const setPitchModal = ref(false)
+  const setThemeModal = ref(false)
+  const setFontModal = ref(false)
+  const fontList = ref<{ label: string; value: string }[]>([
+    { label: '系统默认', value: 'system-ui' }
+  ])
   const extensionCheckResult = ref(false)
   const modalOpen = ref(false)
   const addTrackToPlaylistModal = ref({
     show: false,
     selectedTrackID: [0] as (number | string)[],
-    type: 'online' as TrackType
+    type: 'online' as TrackType | 'all'
   })
   const newPlaylistModal = ref({
     show: false,
@@ -46,6 +54,10 @@ export const useNormalStateStore = defineStore('state', () => {
     active: null as string | null
   })
 
+  const updateStatus = ref(false)
+  const isDownloading = ref(false)
+  const latestVersion = ref<UpdateCheckResult | null>(null)
+
   const registerInstance = (tabId: string) => {
     if (!scrollbar.instances[tabId]) {
       scrollbar.instances[tabId] = {
@@ -64,6 +76,17 @@ export const useNormalStateStore = defineStore('state', () => {
     if (Object.prototype.hasOwnProperty.call(scrollbar.instances, tabId)) {
       delete scrollbar.instances[tabId]
     }
+  }
+
+  const getFontList = () => {
+    window.mainApi?.invoke('getFontList').then((fonts: IFontInfo[]) => {
+      fontList.value = [
+        { label: '系统默认', value: 'system-ui' },
+        ...fonts
+          .filter((font) => font.familyName !== 'system-ui')
+          .map((font) => ({ label: font.name, value: font.postScriptName }))
+      ]
+    })
   }
 
   const updateScroll = (tabId: string, payload: Partial<ScrollState>) => {
@@ -85,9 +108,23 @@ export const useNormalStateStore = defineStore('state', () => {
     }, 3200)
   }
 
-  watch(enableScrolling, (value) => {
-    document.documentElement.style.overflowY = value ? 'auto' : 'hidden'
-  })
+  const checkUpdate = () => {
+    updateStatus.value = true
+    window.mainApi?.invoke('check-update').then((result: UpdateCheckResult | null) => {
+      if (result) latestVersion.value = result
+      updateStatus.value = false
+    })
+  }
+
+  watch(
+    enableScrolling,
+    (value) => {
+      nextTick(() => {
+        document.getElementById('main')!.style.overflowY = value ? 'auto' : 'hidden'
+      })
+    },
+    { immediate: true }
+  )
 
   return {
     enableScrolling,
@@ -97,6 +134,10 @@ export const useNormalStateStore = defineStore('state', () => {
     exploreTab,
     setConvolverModal,
     setPlaybackRateModal,
+    setPitchModal,
+    setThemeModal,
+    setFontModal,
+    fontList,
     extensionCheckResult,
     addTrackToPlaylistModal,
     newPlaylistModal,
@@ -105,9 +146,14 @@ export const useNormalStateStore = defineStore('state', () => {
     toast,
     modalOpen,
     scrollbar,
+    updateStatus,
+    latestVersion,
+    isDownloading,
     showToast,
+    getFontList,
     registerInstance,
     unregisterInstance,
-    updateScroll
+    updateScroll,
+    checkUpdate
   }
 })

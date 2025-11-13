@@ -9,7 +9,7 @@ yarn.lock
 *.log
 
 # dotenv environment variables file
-# .env
+.env
 
 # JetBrains IDEs
 .idea/
@@ -66,3 +66,6 @@ npm-debug.log
 npm-debug.log.*
 vite-plugin-electron.log
 tmp/
+src/renderer/utils/lyricControllerBak_removeFontIdx.ts
+src/renderer/components/LyricPageBak.vue
+src/renderer/components/OsdLyricContainerBak.vue

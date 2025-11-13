@@ -2,11 +2,13 @@
   "nav": {
     "home": "首页",
     "search": "搜索",
+    "explore": "探索",
     "library": "音乐库",
     "stream": "流媒体",
     "localMusic": "本地音乐",
     "settings": "设置",
     "github": "GitHub仓库",
+    "log": "打开 log 文件夹",
     "error": "未知错误",
     "track": "单曲",
     "artist": "歌手",
@@ -93,6 +95,13 @@
       "desc": "此功能只会读取本地歌曲元数据里的音量平衡信息，无法扫描计算得到结果"
     },
     "embeddedInformation": "优先使用歌曲内嵌信息",
+    "trackInfoOrder": {
+      "text": "歌曲信息获取顺序设置",
+      "desc": "此功能用于设置本地歌曲信息（歌词、封面）的获取顺序，可拖拽调整顺序",
+      "path": "从歌曲目录下获取",
+      "online": "从线上获取",
+      "embedded": "从歌曲内嵌信息中获取"
+    },
     "positionTrack": "定位歌曲"
   },
   "artist": {
@@ -130,6 +139,7 @@
     "showLyric": "显示歌词",
     "setConvolver": "音效设置",
     "playBackSpeed": "倍速播放",
+    "pitch": "音调调整",
     "lyricOffset": "歌词时间调整",
     "play": "播放",
     "addToQueue": "添加至队列",
@@ -145,7 +155,8 @@
     "openOnBrowser": "在浏览器中打开",
     "copyURL": "复制链接",
     "copyId": "复制ID",
-    "playMV": "播放MV"
+    "playMV": "播放MV",
+    "setFont": "设置字体"
   },
   "login": {
     "login": "登录",
@@ -157,6 +168,8 @@
     "usernameLogin": "用户名登录",
     "loginWithEmail": "邮箱登录",
     "loginWithPhone": "手机号登录",
+    "loginWithQr": "二维码登陆",
+    "loginWithCookie": "Cookie登陆",
     "noticeElectron": "你的密码会在本地进行MD5加密后再传输到网易云API。VutronMusic 不会传输你的账号数据到任何非网易云音乐官方的服务器。"
   },
   "player": {
@@ -214,6 +227,10 @@
       "soft": "柔和",
       "subwoofer": "重低音",
       "vocal": "人声"
+    },
+    "fade": {
+      "fadeDuration": "音频淡入淡出时长（秒）",
+      "fadeDurationDesc": "切歌、播放、暂停时音量渐变的时长"
     }
   },
   "common": {
@@ -233,11 +250,13 @@
       "trayLyric": "状态栏歌词",
       "localMusic": "本地歌曲",
       "music": "音乐设置",
+      "player": "播放器设置",
       "netease": "线上音乐",
       "stream": "流媒体音乐",
       "local": "本地音乐",
       "unblock": "音源设置",
-      "shortcut": "快捷键设置"
+      "shortcut": "快捷键设置",
+      "update": "软件更新"
     },
     "general": {
       "language": {
@@ -246,6 +265,7 @@
         "zhHant": "繁體中文",
         "en": "English"
       },
+      "showBanner": "在首页显示Banner",
       "showTimeOrID": {
         "text": "歌曲列表信息显示选项",
         "time": "歌曲时长",
@@ -269,7 +289,23 @@
         "high": "极高",
         "lossless": "无损"
       },
-      "logout": "登出"
+      "lyricBackground": {
+        "text": "显示歌词背景",
+        "close": "关闭",
+        "true": "打开",
+        "blur": "模糊封面",
+        "dynamic": "动态"
+      },
+      "trayColor": {
+        "text": "托盘图标颜色",
+        "color": "彩色",
+        "white": "白色",
+        "black": "黑色",
+        "auto": "自动 (跟随系统主题)"
+      },
+      "logout": "登出",
+      "jumpToLyricBegin": "调整进度时吸附到歌词开始位置",
+      "perventSuspend": "播放时防止系统休眠"
     },
     "theme": {
       "auto": "跟随系统",
@@ -321,11 +357,29 @@
         "tlyric": "翻译",
         "romalrc": "音译"
       },
+      "font": "字体设置",
       "fontSize": "字体大小（px）",
+      "textAlign": {
+        "text": "字体对齐方式",
+        "start": "居左",
+        "center": "居中",
+        "end": "居右"
+      },
+      "useMask": {
+        "text": "启用歌词遮罩",
+        "desc": "歌词页上下边缘启用透明渐变的效果"
+      },
       "staticTime": {
         "text": "鼠标停留时长",
-        "desc": "锁定后，鼠标停留该时长后（毫秒）降低窗体透明度，Linux系统下无效"
-      }
+        "desc": "锁定后，鼠标停留该时长后（毫秒）降低窗体透明度，",
+        "desc2": "设置为0则表示不启用该功能，Linux系统下无效"
+      },
+      "showButtonWhenLock": {
+        "text": "锁定后显示解锁按钮",
+        "desc": "启用后，锁定桌面歌词窗口时仍然显示解锁按钮，",
+        "desc2": "并启用鼠标停留降低窗体透明度功能"
+      },
+      "lyricZoom": "放缩当前播放的歌词"
     },
     "unblock": {
       "enable": "启用音源替换",
@@ -384,6 +438,23 @@
       "login": "已登录",
       "logout": "未登陆",
       "offline": "服务器离线"
+    },
+    "update": {
+      "currentVersion": "当前版本",
+      "updateCheck": "检查更新",
+      "downloadUpdate": "下载更新",
+      "cancelDownload": "取消下载",
+      "goToDownload": "前往下载",
+      "updateChecking": "检查更新中",
+      "latestVersion": "最新版本",
+      "changelog": "版本变化",
+      "updateAvailable": "可更新",
+      "updating": "更新中"
+    },
+    "playerTheme": {
+      "title": "播放器样式",
+      "common": "经典模式",
+      "creative": "创意模式"
     }
   },
   "toast": {

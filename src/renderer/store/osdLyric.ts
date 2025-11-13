@@ -3,7 +3,7 @@ import { ref } from 'vue'
 
 export type Type = 'small' | 'normal'
 export type Mode = 'oneLine' | 'twoLines'
-export type TranslationMode = 'none' | 'tlyric' | 'romalrc'
+export type TranslationMode = 'none' | 'tlyric' | 'rlyric'
 
 export const useOsdLyricStore = defineStore(
   'osdLyric',
@@ -15,12 +15,14 @@ export const useOsdLyricStore = defineStore(
     const alwaysOnTop = ref(false)
     const fontSize = ref(26)
     const staticTime = ref(1500)
+    const showButtonWhenLock = ref(true)
     const isWordByWord = ref(true)
     const translationMode = ref<TranslationMode>('tlyric')
     const backgroundColor = ref('rgba(0, 0, 0, 0)')
     const playedLrcColor = ref('#37cf88')
     const unplayLrcColor = ref('rgba(210, 210, 210, 1)')
     const textShadow = ref('rgba(0, 0, 0, 0.2)')
+    const font = ref('system-ui')
 
     window.addEventListener('storage', (event) => {
       if (event.key === 'osdLyric') {
@@ -33,18 +35,16 @@ export const useOsdLyricStore = defineStore(
         alwaysOnTop.value = newState.alwaysOnTop
         fontSize.value = newState.fontSize
         staticTime.value = newState.staticTime
+        showButtonWhenLock.value = newState.showButtonWhenLock
         isWordByWord.value = newState.isWordByWord
         backgroundColor.value = newState.backgroundColor
         playedLrcColor.value = newState.playedLrcColor
         unplayLrcColor.value = newState.unplayLrcColor
         textShadow.value = newState.textShadow
         translationMode.value = newState.translationMode
+        font.value = newState.font
       }
     })
-
-    // onMounted(() => {
-    //   window.mainApi.send('updateOsdState', { show: show.value })
-    // })
 
     return {
       show,
@@ -59,7 +59,9 @@ export const useOsdLyricStore = defineStore(
       playedLrcColor,
       unplayLrcColor,
       textShadow,
-      translationMode
+      translationMode,
+      showButtonWhenLock,
+      font
     }
   },
   {

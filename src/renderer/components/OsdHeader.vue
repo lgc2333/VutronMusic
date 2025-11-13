@@ -15,7 +15,7 @@
     <button class="btn" :style="{ color: unplayLrcColor }" @click="switchMode"
       ><svg-icon :icon-class="type === 'small' ? 'normal-mode' : 'mini-mode'"
     /></button>
-    <button class="btn" :style="{ color: unplayLrcColor }" @click="isLock = true"
+    <button class="btn" :style="{ color: unplayLrcColor }" tabindex="-1" @click="isLock = true"
       ><svg-icon icon-class="lock"
     /></button>
     <button class="btn" :style="{ color: unplayLrcColor }" @click="show = !show"
@@ -36,17 +36,17 @@ const osdLyricStore = useOsdLyricStore()
 const { isLock, type, show, unplayLrcColor } = storeToRefs(osdLyricStore)
 
 const showMain = () => {
-  window.mainApi.send('from-osd', 'showMainWin')
+  window.mainApi?.send('from-osd', 'showMainWin')
 }
 const playPrev = () => {
-  window.mainApi.send('from-osd', 'playPrev')
+  window.mainApi?.send('from-osd', 'playPrev')
 }
 const playOrPause = () => {
   isPlaying.value = !isPlaying.value
-  window.mainApi.send('from-osd', 'playOrPause')
+  window.mainApi?.send('from-osd', 'playOrPause')
 }
 const playNext = () => {
-  window.mainApi.send('from-osd', 'playNext')
+  window.mainApi?.send('from-osd', 'playNext')
 }
 
 const switchMode = () => {
@@ -66,7 +66,7 @@ onMounted(() => {
 <style lang="scss" scoped>
 .header {
   display: flex;
-  height: 43px;
+  height: 34px;
   justify-content: center;
   align-items: center;
   position: relative;

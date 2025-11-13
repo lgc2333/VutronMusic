@@ -1,5 +1,4 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron'
-// import store from '../main/store'
 
 const mainAvailChannels: string[] = ['mouseleave', 'from-osd', 'osd-resize', 'windowMouseleave']
 
@@ -7,8 +6,28 @@ const rendererAvailChannels: string[] = [
   'set-isLock',
   'update-osd-playing-status',
   'updateLyricInfo',
-  'mouseleave-completely'
+  'mouseInWindow'
 ]
+
+let messagePort: MessagePort | null = null
+
+ipcRenderer.on('port-connect', (event: any) => {
+  if (messagePort) {
+    messagePort.close()
+  }
+  messagePort = event.ports[0]
+  messagePort.start()
+
+  messagePort.onmessage = (event) => {
+    window.postMessage(event.data, '*')
+  }
+})
+
+window.addEventListener('unload', () => {
+  if (messagePort) {
+    messagePort.close()
+  }
+})
 
 contextBridge.exposeInMainWorld('mainApi', {
   send: (channel: string, ...data: any[]): void => {
@@ -46,6 +65,19 @@ contextBridge.exposeInMainWorld('mainApi', {
     }
 
     throw new Error(`Unknown ipc channel name: ${channel}`)
+  },
+  sendMessage: (message: any) => {
+    if (messagePort) {
+      messagePort.postMessage(message)
+    } else {
+      throw new Error('Message port is not available')
+    }
+  },
+  closeMessagePort: () => {
+    if (messagePort) {
+      messagePort.close()
+      messagePort = null
+    }
   }
 })
 
@@ -88,13 +120,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const startX = e.clientX
     const startY = e.clientY
+    const startHeight = window.innerHeight
+    const startWidth = window.innerWidth
 
     const onMouseMove = throttle((e: MouseEvent) => {
       if (!isDragging) return
       titleBar.style.cursor = 'move'
       const dx = e.clientX - startX
       const dy = e.clientY - startY
-      ipcRenderer.send('window-drag', { dx, dy })
+      ipcRenderer.send('window-drag', { dx, dy, startHeight, startWidth })
     }, 16)
 
     const onMouseUp = () => {
@@ -132,15 +166,17 @@ document.addEventListener('DOMContentLoaded', () => {
     clearTimeout(timeoutId)
 
     const osdLyric = JSON.parse(localStorage.getItem('osdLyric'))
+    if (osdLyric?.staticTime === 0 || !osdLyric.showButtonWhenLock) return
 
     lastMoveTime = Date.now()
     timeoutId = setTimeout(() => {
       const now = Date.now()
       if (
-        root.classList.contains('is-lock') &&
+        root?.classList?.contains('is-lock') &&
         now - lastMoveTime >= (osdLyric.staticTime ?? 1500)
       ) {
         root.style.opacity = '0.02'
+        clearTimeout(timeoutId)
       }
     }, osdLyric.staticTime ?? 1500)
   })

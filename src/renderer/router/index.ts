@@ -18,7 +18,7 @@ import {
   StreamLogin,
   StreamPage
 } from '../views'
-import { createRouter, createWebHashHistory } from 'vue-router'
+import { createRouter, createWebHashHistory, createWebHistory } from 'vue-router'
 import { isAccountLoggedIn } from '../utils/auth'
 
 const routes = [
@@ -52,7 +52,7 @@ const routes = [
     }
   },
   {
-    path: '/streamLogin',
+    path: '/streamLogin/:service',
     name: 'streamLogin',
     component: StreamLogin
   },
@@ -62,7 +62,7 @@ const routes = [
     component: StreamPage
   },
   {
-    path: '/streamPlaylist/:id',
+    path: '/streamPlaylist/:service/:id',
     name: 'streamPlaylist',
     component: PlaylistPage
   },
@@ -75,7 +75,7 @@ const routes = [
     }
   },
   {
-    path: '/stream-liked-songs',
+    path: '/stream-liked-songs/:service',
     name: 'streamLikedSongs',
     component: PlaylistPage
   },
@@ -182,7 +182,7 @@ const routes = [
 ]
 
 const router = createRouter({
-  history: createWebHashHistory(),
+  history: window.env?.isElectron ? createWebHashHistory() : createWebHistory(),
   routes
 })
 

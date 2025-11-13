@@ -1,6 +1,5 @@
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios'
 import { doLogout } from './auth'
-// import { getCookie } from './auth'
 
 const baseUrl = '/netease'
 

@@ -135,6 +135,8 @@ const listStyles = computed(() => {
 const visibleMiddle = computed(() => (endRow.value + startRow.value) / 2)
 
 const hasCustomTitleBar = inject('hasCustomTitleBar', ref(true))
+const mainRef = inject('mainRef', ref<HTMLElement>())
+const scrollMainTo = inject('scrollMainTo', (to: number) => {})
 
 const _isPrefixSubset = (oldArray: any[], newArray: any[]) => {
   if (newArray.length < oldArray.length || !oldArray.length) return false
@@ -230,15 +232,23 @@ const scrollTocurrent = (index: number, behavior: ScrollBehavior = 'smooth') => 
   if (idx > 0) {
     const elTop =
       listRef.value.getBoundingClientRect().top -
-      document.documentElement.getBoundingClientRect().top
-    const root = document.documentElement
-    root.scrollTo({
-      top: elTop,
-      behavior
-    })
+      (mainRef.value!.firstElementChild?.getBoundingClientRect()?.top || 0) +
+      30
+    scrollMainTo(elTop)
   } else {
-    const el = document.getElementById(index.toString())
-    el?.scrollIntoView({ block: 'center', behavior })
+    if (index >= startRow.value) {
+      const el = itemsRef.value?.find((el) => el.id === index.toString())
+      if (el) {
+        const elTop = el.getBoundingClientRect().top
+        const dist =
+          mainRef.value!.scrollTop - (window.innerHeight / 2 - elTop - itemSize.value / 2)
+        scrollMainTo(Math.max(dist, 0))
+        nextTick(() => {
+          el?.scrollIntoView({ block: 'center', behavior })
+        })
+        return
+      }
+    }
   }
 
   let top: number
@@ -256,8 +266,7 @@ const scrollTocurrent = (index: number, behavior: ScrollBehavior = 'smooth') => 
       if (currentScrollTop === lastScrollTop) {
         if (isScrolling) {
           isScrolling = false
-          const el = document.getElementById(index.toString())
-          el?.scrollIntoView({ block: 'center', behavior })
+          scrollTocurrent(index)
         }
       } else {
         lastScrollTop = currentScrollTop
@@ -283,7 +292,7 @@ const scrollToTop = () => {
     if (currentScrollTop === lastScrollTop) {
       if (isScrolling) {
         isScrolling = false
-        document.documentElement.scrollTo({ top: 0, behavior: 'smooth' })
+        scrollMainTo(0)
       }
     } else {
       lastScrollTop = currentScrollTop
@@ -395,7 +404,7 @@ const observer = new IntersectionObserver(
   },
   {
     root: null,
-    rootMargin: `-${hasCustomTitleBar.value ? 84 : 64}px 0px 0px 0px`,
+    rootMargin: `-64px 0px 0px 0px`,
     // 这里设置成0.98的目的，是为了确保在special-playlist页面可以正常进入到滚动状态
     // 某些情况下，页面会无法达到1，导致无法滚动
     threshold: 0.99
@@ -441,21 +450,23 @@ initPosition()
 
 let updateScrollStart = 0
 
-eventBus.on('update-start', () => {
-  updateScrollStart = listRef.value?.scrollTop
-})
+const startEvent = () => {
+  updateScrollStart = listRef.value?.scrollTop || 0
+}
 
-// @ts-ignore
-eventBus.on('update-scroll-bar', (data: any) => {
+const updateEvent = (data: { active: string; offset: number }) => {
   if (data.active !== instanceId.value) return
   if (updateScrollStart === 0) updateScrollStart = listRef.value?.scrollTop
   const top = Math.min(listRef.value?.scrollHeight, Math.max(updateScrollStart + data.offset, 0))
   listRef.value.scrollTo({ top, behavior: 'instant' })
-})
+}
 
-eventBus.on('update-done', () => {
-  updateScrollStart = listRef.value?.scrollTop || 0
-})
+eventBus.on('update-start', startEvent)
+
+// @ts-ignore
+eventBus.on('update-scroll-bar', updateEvent)
+
+eventBus.on('update-done', startEvent)
 
 onActivated(() => {
   observer.observe(listRef.value)
@@ -498,6 +509,10 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', updateWindowHeight)
   observer.unobserve(listRef.value)
   virtualScrolling.value = false
+  eventBus.off('update-start', startEvent)
+  // @ts-ignore
+  eventBus.off('update-scroll-bar', updateEvent)
+  eventBus.off('update-done', startEvent)
 })
 </script>
 
@@ -507,7 +522,7 @@ onBeforeUnmount(() => {
 }
 
 .infinite-list-container {
-  /* overflow-x: hidden; */
+  overflow-x: hidden;
   width: 100%;
   overflow-y: auto;
   position: relative;

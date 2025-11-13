@@ -1,8 +1,11 @@
 import { defineStore } from 'pinia'
-import { ref, toRaw } from 'vue'
+import { ref, toRaw, toRefs } from 'vue'
+import { useSettingsStore } from './settings'
+import { compare } from 'compare-versions'
 import _ from 'lodash'
 
 type TrackType = 'online' | 'local' | 'stream'
+export const sortList = ['default', 'byname', 'ascend', 'descend'] as const
 
 export interface Artist {
   id: number
@@ -36,6 +39,7 @@ export interface Track {
   artists: Artist[]
   picUrl: string
   source?: string
+  size?: number
   gain: number
   peak: number
   [key: string]: any
@@ -55,11 +59,11 @@ export interface Playlist {
 export const useLocalMusicStore = defineStore(
   'localMusic',
   () => {
+    const enable = ref(true)
+    const version = ref('2.4.0')
     const localTracks = ref<Track[]>([])
-    const albums = ref<Album[]>([])
-    const artists = ref<any[]>([])
     const playlists = ref<Playlist[]>([])
-    const sortBy = ref('default')
+    const sortBy = ref<(typeof sortList)[number]>('default')
     const sortPlaylistsIDs = ref<number[]>([])
 
     const updateTrack = (filePath: string, track: any) => {
@@ -70,7 +74,7 @@ export const useLocalMusicStore = defineStore(
       playlists.value.forEach((p) => {
         if (p.trackIds.includes(localTrack.id)) {
           p.trackIds.splice(p.trackIds.indexOf(localTrack.id), 1, track.id)
-          p.coverImgUrl = `atom://get-playlist-pic/${p.trackIds[p.trackIds.length - 1]}`
+          p.coverImgUrl = `atom://local-asset?type=pic&id=${p.trackIds[p.trackIds.length - 1]}`
           p.updateTime = Date.now()
         }
       })
@@ -94,7 +98,7 @@ export const useLocalMusicStore = defineStore(
         trackCount: params.trackCount as number,
         trackIds: params.trackIds as number[]
       }
-      const result = await window.mainApi.invoke('upsertLocalPlaylist', playlist)
+      const result = await window.mainApi?.invoke('upsertLocalPlaylist', playlist)
       if (result) {
         playlists.value.push(playlist)
         sortPlaylistsIDs.value.unshift(playlist.id)
@@ -111,10 +115,10 @@ export const useLocalMusicStore = defineStore(
         if (newIDs.length === 0) return resolve(false)
         const idx = tracks.length - 1
         const imgID = tracks[idx]
-        playlist.coverImgUrl = `atom://get-playlist-pic/${imgID}`
+        playlist.coverImgUrl = `atom://local-asset?type=pic&id=${imgID}&size=512`
         playlist.trackIds = [...playlist.trackIds, ...newIDs]
         playlist.trackCount = playlist.trackIds.length
-        window.mainApi.invoke('upsertLocalPlaylist', toRaw(playlist))
+        window.mainApi?.invoke('upsertLocalPlaylist', toRaw(playlist))
         resolve(true)
       })
     }
@@ -138,16 +142,16 @@ export const useLocalMusicStore = defineStore(
         const idx = playlist.trackIds.length - 1
         playlist.coverImgUrl =
           idx >= 0
-            ? `atom://get-playlist-pic/${playlist.trackIds[idx]}`
+            ? `atom://local-asset?type=pic&id=${playlist.trackIds[idx]}`
             : 'https://p1.music.126.net/jWE3OEZUlwdz0ARvyQ9wWw==/109951165474121408.jpg?param=512y512'
         playlist.trackCount = playlist.trackIds.length
-        window.mainApi.invoke('upsertLocalPlaylist', toRaw(playlist))
+        window.mainApi?.invoke('upsertLocalPlaylist', toRaw(playlist))
         resolve(true)
       })
     }
 
     const deleteLocalPlaylist = async (playlistId: number) => {
-      const result = (await window.mainApi.invoke('deleteLocalPlaylist', playlistId)) as boolean
+      const result = (await window.mainApi?.invoke('deleteLocalPlaylist', playlistId)) as boolean
       if (result) {
         playlists.value = playlists.value.filter((p) => p.id !== playlistId)
         sortPlaylistsIDs.value = sortPlaylistsIDs.value.filter((id) => id !== playlistId)
@@ -167,34 +171,85 @@ export const useLocalMusicStore = defineStore(
       })
     }
 
+    const getLocalLyric = async (id: number) => {
+      const res = await fetch(`atom://local-asset?type=lyric&id=${id}`)
+      return (await res.json()) as {
+        lrc: { lyric: any[] }
+        tlyric: { lyric: any[] }
+        romalrc: { lyric: any[] }
+        yrc: { lyric: any[] }
+        ytlrc: { lyric: any[] }
+        yromalrc: { lyric: any[] }
+      }
+    }
+
+    const getALocalTrack = (query: Partial<Track>) => {
+      return localTracks.value.find((track) =>
+        Object.entries(query).every(([key, value]) => track[key as keyof Track] === value)
+      )
+    }
+
+    const getLocalPic = async (id: number, size: number) => {
+      const pic = new URL(`../assets/images/default.jpg`, import.meta.url).href
+      const result = await fetch(`atom://local-asset?type=pic&id=${id}&size=${size}`)
+        .then((res) => res.blob())
+        .then((res) => URL.createObjectURL(res))
+        .catch(() => null)
+      return result ?? pic
+    }
+
+    const scanLocalMusic = async (update = false) => {
+      const settingsStore = useSettingsStore()
+      const { scanDir, scanning } = toRefs(settingsStore.localMusic)
+
+      window.mainApi?.send('clearDeletedMusic')
+
+      if (!scanDir.value) return
+      const isExist = await window.mainApi?.invoke('msgCheckFileExist', scanDir.value)
+      if (!isExist) return
+      scanning.value = true
+      window.mainApi?.send('msgScanLocalMusic', { filePath: scanDir.value, update })
+    }
+
     const resetLocalMusic = () => {
       localTracks.value = []
-      albums.value = []
-      artists.value = []
       playlists.value = []
       sortBy.value = 'default'
     }
 
+    const updateApp = async () => {
+      const result = (await window.mainApi?.invoke('msgRequestGetVersion')) as string
+      if (compare(version.value || '2.4.0', '2.4.0', '<=')) {
+        scanLocalMusic(true)
+      }
+      version.value = result
+    }
+    updateApp()
+
     return {
+      enable,
+      version,
       localTracks,
-      albums,
-      artists,
       playlists,
       sortPlaylistsIDs,
       sortBy,
       updateTrack,
+      scanLocalMusic,
       fetchLocalMusic,
+      getLocalLyric,
+      getALocalTrack,
       resetLocalMusic,
       createLocalPlaylist,
       addTrackToLocalPlaylist,
       removeTrackFromPlaylist,
       deleteLocalPlaylist,
+      getLocalPic,
       deleteLocalTracks
     }
   },
   {
     persist: {
-      paths: ['sortBy', 'sortPlaylistsIDs']
+      pick: ['sortBy', 'sortPlaylistsIDs', 'version']
     }
   }
 )

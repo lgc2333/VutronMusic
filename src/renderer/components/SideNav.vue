@@ -9,7 +9,7 @@
     </button-icon>
     <button-icon
       :class="{ active: isCurrentRoute('/explore') }"
-      :data-tip="`${$t('nav.search')}`"
+      :data-tip="`${$t('nav.explore')}`"
       @click="handleRoute('/explore')"
     >
       <svg-icon class="icon" icon-class="explore" style="transform: scale(1.4)" />
@@ -87,7 +87,7 @@ const isCurrentRoute = (path: string): boolean => {
   text-transform: uppercase;
   user-select: none;
   -webkit-app-region: drag;
-  z-index: 100;
+  z-index: 15;
   background-color: var(--color-secondary-bg);
   border-radius: 12px;
   transform: translate(0, -50%);
@@ -107,6 +107,7 @@ const isCurrentRoute = (path: string): boolean => {
     .svg-icon {
       width: 100px;
       height: 40px;
+      transition: color 0.2s ease-in;
     }
     .icon {
       width: 26px;
@@ -160,6 +161,10 @@ const isCurrentRoute = (path: string): boolean => {
   button.active {
     background: var(--color-primary);
     color: white;
+    transition: background 0.2s ease-in;
+    .icon {
+      color: white;
+    }
   }
 }
 </style>

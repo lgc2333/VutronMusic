@@ -1,6 +1,7 @@
 import { db, Tables } from './db'
 import { CacheAPIs } from './utils/CacheApis'
 import _ from 'lodash'
+import log from './log'
 
 class Cache {
   constructor() {}
@@ -29,10 +30,8 @@ class Cache {
         const newTrack = data.result.songs[0]
         playlists.forEach((p: any) => {
           if (p.trackIds.includes(track.id)) {
-            // p.trackIds = p.trackIds.map((id: number) => (id === track.id ? newTrack.id : id))
-            // p.coverImgUrl = `atom://get-playlist-pic/${newTrack.id}`
             p.trackIds.splice(p.trackIds.indexOf(track.id), 1, newTrack.id)
-            p.coverImgUrl = `atom://get-playlist-pic/${p.trackIds[p.trackIds.length - 1]}`
+            p.coverImgUrl = `atom://local-asset?type=pic&id=${p.trackIds[p.trackIds.length - 1]}`
             const playlist = {
               id: p.id,
               isLocal: 1,
@@ -62,6 +61,7 @@ class Cache {
           db.update(Tables.Track, trackRaw.id, result)
           return true
         } catch (error) {
+          log.error('更新本地歌曲失败:', error)
           db.update(Tables.Track, result.id, result)
           db.delete(Tables.Track, trackRaw.id)
           return true
@@ -78,6 +78,7 @@ class Cache {
           db.upsert(Tables.Playlist, playlist)
           return true
         } catch (error) {
+          log.error('更新本地歌单失败:', error)
           return false
         }
       }
@@ -104,6 +105,7 @@ class Cache {
           db.update(Tables.Track, trackRaw.id, result)
           return true
         } catch (error) {
+          log.error('更新歌曲缓存失败:', error)
           return false
         }
       }
@@ -169,10 +171,6 @@ class Cache {
       }
     }
   }
-
-  getAudio(fileName: string) {}
-
-  setAudio(buffer: Buffer, { id, url, bitrate }: { id: number; url: string; bitrate: number }) {}
 }
 
 export default new Cache()

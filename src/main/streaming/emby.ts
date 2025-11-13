@@ -1,8 +1,8 @@
-// import store from '../store'
 import axios from 'axios'
 import Constants from '../utils/Constants'
 import { parseLyricString } from '../utils/utils'
 import store from '../store'
+import log from '../log'
 
 const client = 'VutronMusic'
 const version = Constants.APP_VERSION
@@ -17,22 +17,18 @@ const ApiRequest = async (
   const baseUrl = store.get('accounts.emby.url') as string
 
   params.UserId = userId
-  const headers = { 'X-Emby-Token': accessToken, timeout: 15000 }
+  const headers = { 'X-Emby-Token': accessToken, timeout: 5000 }
   const url = `${baseUrl}/emby/${endpoint}`
 
-  const response = await axios({ method, url, data: params, headers })
+  const response = await axios({ method, url, data: params, headers }).catch((error) => {
+    log.info('======================== emby error: ', error.code, error.status)
+    return error
+  })
   return response
 }
 
-const getLyricFromExtraData = (data: any): string | null => {
-  if (!data.MediaStreams) return null
-  for (const stream of data.MediaStreams) {
-    if (stream.Extradata) return stream.Extradata
-  }
-  return null
-}
-
 export interface EmbyImpl {
+  systemPing: () => Promise<'logout' | 'login' | 'offline'>
   doLogin: (
     baseUrl: string,
     username: string,
@@ -41,8 +37,8 @@ export interface EmbyImpl {
 
   getTracks: () => Promise<{ code: number; data?: any; message?: any }>
   getPlaylists: () => Promise<any>
-  getLyric: (id: number) => Promise<any>
-  getStrem: (id: string) => string
+  getLyric: (id: string) => Promise<any>
+  getStream: (id: string) => string
   createPlaylist: (name: string) => Promise<{ status: string; data?: any }>
   deletePlaylist: (id: number) => Promise<boolean>
   scrobble: (id: number) => void
@@ -51,6 +47,28 @@ export interface EmbyImpl {
 }
 
 class Emby implements EmbyImpl {
+  async systemPing() {
+    const baseUrl = store.get('accounts.emby.url') as string
+    const status = store.get('accounts.emby.status') as 'logout' | 'login' | 'offline'
+    if (!baseUrl || status === 'logout') return 'logout'
+    const response = await axios
+      .get(`${baseUrl}/System/Ping`, { timeout: 5000 })
+      .then((res) => {
+        store.set('accounts.emby.status', 'login')
+        return res
+      })
+      .catch(() => ({ status: 504 }))
+
+    switch (response.status) {
+      case 200:
+        return 'login'
+      case 504:
+        return 'offline'
+      default:
+        return 'logout'
+    }
+  }
+
   async doLogin(baseUrl: string, username: string, password: string) {
     const endpoint = 'Users/AuthenticateByName'
     const method = 'POST'
@@ -66,10 +84,15 @@ class Emby implements EmbyImpl {
       if (response.status === 200) {
         store.set('accounts.emby.accessToken', response.data.AccessToken)
         store.set('accounts.emby.userId', response.data.User.Id)
+        store.set('accounts.emby.status', 'login')
         return { code: 200 }
       }
     } catch (error) {
-      return { code: 404, message: error.response.data as string }
+      log.error('======= Emby login error =======', error)
+      return {
+        code: 404,
+        message: (error?.response?.data as string) || error.message || 'Login failed'
+      }
     }
   }
 
@@ -77,7 +100,7 @@ class Emby implements EmbyImpl {
     const endpoint = 'Items'
     const params = {
       IncludeItemTypes: 'Audio',
-      Fields: 'DateCreated, Size, Bitrate, IsFavorite',
+      Fields: 'DateCreated, Size, Bitrate, IsFavorite, MediaSources',
       Recursive: true
     }
     const [response, response2] = await Promise.all([
@@ -86,13 +109,10 @@ class Emby implements EmbyImpl {
     ])
     if (response.status === 200) {
       const tracks = response?.data?.Items.map((song) => {
-        const picUrl = song?.ImageTags?.Primary
-          ? `atom://get-stream-pic/${song.Id}/${song.ImageTags?.Primary}/64`
-          : 'https://p2.music.126.net/UeTuwE7pvjBpypWLudqukA==/3132508627578625.jpg'
         const artists = song.ArtistItems.map((t) => {
           const art = response2.find((a) => a.Id === t.Id)!
           const artUrl = art?.ImageTags?.Primary
-            ? `atom://get-stream-pic/${t.Id}/${art?.ImageTags?.Primary}/64`
+            ? this.getPic(t.Id, art.ImageTags.Primary, 64)
             : 'http://p1.music.126.net/6y-UleORITEDbvrOLV0Q8A==/5639395138885805.jpg?param=64y64'
           return {
             name: t.Name,
@@ -101,6 +121,8 @@ class Emby implements EmbyImpl {
             picUrl: artUrl
           }
         })
+        const lrcItem = song.MediaSources[0].MediaStreams.find((item) => item.Codec === 'lrc')
+        const lrcId = lrcItem ? `${song.Id}/${song.MediaSources[0].Id}/${lrcItem.Index}` : song.Id
         const track = {
           id: song.Id,
           name: song.Name,
@@ -108,23 +130,35 @@ class Emby implements EmbyImpl {
           starred: song.UserData.IsFavorite,
           size: song.Size,
           source: 'emby',
-          url: `atom://get-stream-music/${song.Id}`,
+          url: this.getStream(song.Id),
+          lrcId,
           gain: 0,
           peak: 1,
           br: song.Bitrate,
           type: 'stream',
           matched: false,
+          no: song.IndexNumber || 1,
           offset: 0,
           createTime: new Date(song.DateCreated).getTime(),
           alias: [],
           album: {
-            id: song.AlbumId,
-            name: song.Album,
+            id: song.AlbumId ?? '',
+            name: song.Album ?? '',
             matched: false,
-            picUrl
+            picUrl: `/stream-asset?service=emby&id=${song.Id}&primary=${song.ImageTags?.Primary}&size=64`
           },
-          artists,
-          picUrl
+          artists: artists.length
+            ? artists
+            : [
+                {
+                  name: '',
+                  id: '',
+                  picUrl:
+                    'http://p1.music.126.net/6y-UleORITEDbvrOLV0Q8A==/5639395138885805.jpg?param=64y64',
+                  matched: false
+                }
+              ],
+          picUrl: this.getPic(song.Id, song.ImageTags?.Primary, 64)
         }
         return track
       })
@@ -148,10 +182,7 @@ class Emby implements EmbyImpl {
     const endpoint = 'Items/Delete'
     const params = { Ids: id }
 
-    const response = await ApiRequest('POST', endpoint, params).catch((err) => {
-      console.log('111111111', err)
-      return err
-    })
+    const response = await ApiRequest('POST', endpoint, params)
     return response.status === 204
   }
 
@@ -168,7 +199,9 @@ class Emby implements EmbyImpl {
       Recursive: true,
       Fields: 'PrimaryImageAspectRatio'
     }
-    return ApiRequest('GET', endpoint, params).then((res) => res?.data?.Items)
+    return ApiRequest('GET', endpoint, params)
+      .then((res) => res?.data?.Items)
+      .catch((err) => err)
   }
 
   async getPlaylists() {
@@ -184,29 +217,35 @@ class Emby implements EmbyImpl {
       const playlists = await Promise.all(
         response.data.Items.map(async (p) => {
           const tracks = await this.getPlaylistTracks(p.Id)
-          const trackIds = tracks?.map((track) => track.Id)
-          const trackItemIds = tracks.reduce((acc, item) => {
-            acc[item.Id.toString()] = item.PlaylistItemId
-            return acc
-          }, {})
+
+          const trackIds = tracks.map((track) => track.Id)
+          const trackItemIds = tracks.reduce(
+            (acc, item) => {
+              acc[item.Id.toString()] = item.PlaylistItemId
+              return acc
+            },
+            {} as Record<string, string>
+          )
+
           const url = p.ImageTags?.Primary
-            ? `atom://get-stream-pic/${p.Id}/${p.ImageTags?.Primary}/512`
-            : 'https://p1.music.126.net/jWE3OEZUlwdz0ARvyQ9wWw==/109951165474121408.jpg?param=512y512?param=512y512'
-          const playlist = {
+            ? this.getPic(p.Id, p.ImageTags.Primary, 512)
+            : 'https://p1.music.126.net/jWE3OEZUlwdz0ARvyQ9wWw==/109951165474121408.jpg?param=512y512'
+
+          return {
             id: p.Id,
             name: p.Name,
             description: p.Overview,
             updateTime: new Date(p.DateCreated).getTime(),
-            trackCount: trackIds.length || 0,
+            trackCount: trackIds.length,
             coverImgUrl: url,
+            service: 'emby',
             trackIds,
             trackItemIds,
             creator: { nickname: username }
           }
-          return playlist
         })
       )
-      return { code: 200, massage: 'ok', data: playlists }
+      return { code: 200, message: 'ok', data: playlists }
     }
     return { code: 404 }
   }
@@ -214,11 +253,8 @@ class Emby implements EmbyImpl {
   async getPlaylistTracks(id: string) {
     const endpoint = `Playlists/${id}/Items`
     const params = { Recursive: true }
-    const response = await ApiRequest('GET', endpoint, params).catch((err) => {
-      console.log('122223333', err)
-      return err
-    })
-    return (response?.data?.Items as any[]) ?? []
+    const response = await ApiRequest('GET', endpoint, params)
+    return (response?.data?.Items as any[]) || []
   }
 
   async likeATrack(op: 'star' | 'unstar', id: number) {
@@ -237,11 +273,16 @@ class Emby implements EmbyImpl {
     const baseUrl = store.get('accounts.emby.url') as string
     const headers = { 'X-Emby-Token': accessToken, timeout: 15000 }
 
-    const url = `${baseUrl}/Users/${userId}/PlayedItems/${id}`
+    const time = new Date()
+      .toISOString()
+      .replace(/[-:TZ.]/g, '')
+      .slice(0, 14)
+
+    const url = `${baseUrl}/Users/${userId}/PlayedItems/${id}?datePlayed=${time}`
     axios({ method: 'POST', url, headers })
   }
 
-  getStrem(id: string) {
+  getStream(id: string) {
     const userId = store.get('accounts.emby.userId') as string
     const accessToken = store.get('accounts.emby.accessToken') as string
     const baseUrl = store.get('accounts.emby.url') as string
@@ -257,8 +298,8 @@ class Emby implements EmbyImpl {
     return url
   }
 
-  async getLyric(id: number) {
-    let result = {
+  async getLyric(id: string) {
+    const result = {
       lrc: { lyric: [] },
       tlyric: { lyric: [] },
       romalrc: { lyric: [] },
@@ -266,27 +307,129 @@ class Emby implements EmbyImpl {
       ytlrc: { lyric: [] },
       yromalrc: { lyric: [] }
     }
-    const userId = store.get('accounts.emby.userId') as string
-    const accessToken = store.get('accounts.emby.accessToken') as string
-    const baseUrl = store.get('accounts.emby.url') as string
-
-    const url = `${baseUrl}/emby/Users/${userId}/Items/${id}?fields=ShareLevel&ExcludeFields=VideoChapters%2CVideoMediaSources%2CMediaStreams&api_key=${accessToken}`
-    const response = await axios.get(url)
-    const lrc = getLyricFromExtraData(response.data)
-    if (!lrc) return result
-    const lyrics = parseLyricString(lrc)
-    result = {
-      lrc: { lyric: lyrics[0] || [] },
-      tlyric: { lyric: lyrics[1] || [] },
-      romalrc: { lyric: lyrics[2] || [] },
-      yrc: { lyric: [] },
-      ytlrc: { lyric: [] },
-      yromalrc: { lyric: [] }
+    const pool = [
+      { fn: getFileLyric, id },
+      { fn: getEmbeddedLyric, id }
+    ]
+    for (const { fn, id } of pool) {
+      const result = await fn(id)
+      if (result.lrc.lyric.length) return result
     }
+
     return result
   }
 }
 
 const emby = new Emby()
+
+const getLyricFromExtraData = (data: any): string | null => {
+  if (!data.MediaStreams) return null
+  for (const stream of data.MediaStreams) {
+    if (stream.Extradata) return stream.Extradata
+  }
+  return null
+}
+
+const getEmbeddedLyric = async (idString: string) => {
+  const result = {
+    lrc: { lyric: [] },
+    tlyric: { lyric: [] },
+    romalrc: { lyric: [] },
+    yrc: { lyric: [] },
+    ytlrc: { lyric: [] },
+    yromalrc: { lyric: [] }
+  }
+
+  const baseUrl = store.get('accounts.emby.url') as string
+  const userId = store.get('accounts.emby.userId') as string
+  const accessToken = store.get('accounts.emby.accessToken') as string
+
+  const res = idString.split('/')
+
+  const url = `${baseUrl}/emby/Users/${userId}/Items/${res[0]}?fields=ShareLevel&ExcludeFields=VideoChapters%2CVideoMediaSources%2CMediaStreams&api_key=${accessToken}`
+  const response = await axios.get(url)
+  const lrc = getLyricFromExtraData(response.data)
+  if (!lrc) return result
+  const lyrics = parseLyricString(lrc)
+  return lyrics
+}
+
+const getFileLyric = async (idString: string) => {
+  let result = {
+    lrc: { lyric: [] },
+    tlyric: { lyric: [] },
+    romalrc: { lyric: [] },
+    yrc: { lyric: [] },
+    ytlrc: { lyric: [] },
+    yromalrc: { lyric: [] }
+  }
+  const res = idString.split('/')
+  if (res.length !== 3) return result
+  const baseUrl = store.get('accounts.emby.url') as string
+  const accessToken = store.get('accounts.emby.accessToken') as string
+
+  const url = `${baseUrl}/Items/${res[0]}/${res[1]}/Subtitles/${res[2]}/Stream.js`
+  const headers = { 'X-Emby-Token': accessToken, timeout: 5000 }
+  const response = await axios({ method: 'GET', url, headers })
+  result = parseLyric(response.data?.TrackEvents ?? [])
+  return result
+}
+
+const parseLyric = (
+  lrcItem: { Text: string; StartPositionTicks: number; EndPositionTicks?: number }[]
+) => {
+  const result = {
+    lrc: { lyric: [] },
+    tlyric: { lyric: [] },
+    romalrc: { lyric: [] },
+    yrc: { lyric: [] },
+    ytlrc: { lyric: [] },
+    yromalrc: { lyric: [] }
+  }
+  const lyricMap = new Map()
+  const chineseRegex = /[\u4E00-\u9FFF]/
+
+  for (const line of lrcItem) {
+    const timeStamps = formatMilliseconds(line.StartPositionTicks)
+    if (!lyricMap.has(line.StartPositionTicks)) {
+      lyricMap.set(line.StartPositionTicks, [])
+    }
+    lyricMap.get(line.StartPositionTicks).push(timeStamps + line.Text)
+  }
+
+  for (const lyricArray of lyricMap.values()) {
+    for (let i = 0; i < lyricArray.length; i++) {
+      if (i === 0) {
+        result.lrc.lyric.push(lyricArray[0])
+      } else {
+        const lyric = lyricArray[i].replace(
+          /(?!^\[\d{2}:\d{2}\.\d{3}\])\[\d{2}:\d{2}\.\d{3}\]/g,
+          ''
+        )
+        if (chineseRegex.test(lyric)) {
+          result.tlyric.lyric.push(lyric)
+        } else {
+          result.romalrc.lyric.push(lyric)
+        }
+      }
+    }
+  }
+
+  return result
+}
+
+const formatMilliseconds = (num: number) => {
+  const milliseconds = num / 10000
+
+  const minutes = Math.floor(milliseconds / 60000)
+  const seconds = Math.floor((milliseconds % 60000) / 1000)
+  const remainingMilliseconds = Math.floor(milliseconds % 1000)
+
+  const formattedMinutes = minutes.toString().padStart(2, '0')
+  const formattedSeconds = seconds.toString().padStart(2, '0')
+  const formattedMilliseconds = remainingMilliseconds.toString().padStart(3, '0')
+
+  return `[${formattedMinutes}:${formattedSeconds}.${formattedMilliseconds}]`
+}
 
 export default emby

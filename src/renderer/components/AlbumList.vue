@@ -23,6 +23,8 @@
       :list="showTracks"
       :item-height="48"
       class="track-list"
+      :above-value="5"
+      :below-value="5"
       :show-position="false"
       :is-end="true"
     >
@@ -30,7 +32,8 @@
         <TrackListItem
           :key="index"
           :track-prop="item"
-          :track-no="index + 1"
+          :track-no="item.no || index + 1"
+          :show-service="item.type === 'stream'"
           type-prop="album"
           :style="{ marginLeft: '20px' }"
           @dblclick="playThisList(item.id)"
@@ -80,7 +83,7 @@ const albums = computed(() => {
 // 右边显示的已选择的专辑歌曲
 const showTracks = computed(() => {
   const album = albums.value[selectedIdx.value]
-  return tracks.value.filter((track) => track.album.name === album.name)
+  return tracks.value.filter((track) => track.album.name === album.name).sort((a, b) => a.no - b.no)
 })
 
 // ==================== function ==================== //

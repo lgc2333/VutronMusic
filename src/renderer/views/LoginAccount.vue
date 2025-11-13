@@ -8,7 +8,7 @@
       </div>
       <div class="title">{{ $t('login.loginText') }}</div>
       <div class="section-2">
-        <div v-show="mode === 'phone'" class="input-box">
+        <div v-show="selectedMode.mode === 'phone'" class="input-box">
           <div class="container" :class="{ active: inputFocus === 'phone' }">
             <svg-icon icon-class="mobile" />
             <div class="inputs">
@@ -32,7 +32,7 @@
           </div>
         </div>
 
-        <div v-show="mode === 'email'" class="input-box">
+        <div v-show="selectedMode.mode === 'email'" class="input-box">
           <div class="container" :class="{ active: inputFocus === 'email' }">
             <svg-icon icon-class="mail" />
             <div class="inputs">
@@ -48,7 +48,18 @@
             </div>
           </div>
         </div>
-        <div v-show="mode !== 'qrCode'" class="input-box">
+
+        <div v-show="selectedMode.mode === 'cookie'" class="input-box">
+          <div class="container text-container">
+            <textarea
+              v-model="inputCookie"
+              class="cookie-input"
+              placeholder="请输入cookie"
+            ></textarea>
+          </div>
+        </div>
+
+        <div v-show="['phone', 'email'].includes(selectedMode.mode)" class="input-box">
           <div class="container" :class="{ active: inputFocus === 'password' }">
             <svg-icon icon-class="lock" />
             <div class="inputs">
@@ -65,7 +76,7 @@
           </div>
         </div>
 
-        <div v-show="mode == 'qrCode'">
+        <div v-show="selectedMode.mode == 'qrCode'">
           <div v-show="qrCodeSvg" class="qr-code-container">
             <img :src="qrCodeSvg" loading="lazy" />
           </div>
@@ -74,47 +85,55 @@
           </div>
         </div>
       </div>
-      <div v-show="mode !== 'qrCode'" class="confirm">
+      <div v-show="selectedMode.mode !== 'qrCode'" class="confirm">
         <button v-show="!processing" @click="login">
           {{ $t('login.login') }}
         </button>
-        <button v-show="processing" class="loading" disabled>
-          <span></span>
-          <span></span>
-          <span></span>
-        </button>
       </div>
       <div class="other-login">
-        <a v-show="mode !== 'email'" @click="changeMode('email')">{{
-          $t('login.loginWithEmail')
-        }}</a>
-        <span v-show="mode === 'qrCode'">|</span>
-        <a v-show="mode !== 'phone'" @click="changeMode('phone')">{{
-          $t('login.loginWithPhone')
-        }}</a>
-        <span v-show="mode !== 'qrCode'">|</span>
-        <a v-show="mode !== 'qrCode'" @click="changeMode('qrCode')"> 二维码登录 </a>
+        <a
+          v-for="mode in [...loginModes.filter((m) => !m.selected)]"
+          :key="mode.mode"
+          @click="changeMode(mode.mode)"
+          >{{ mode.text }}</a
+        >
       </div>
-      <div v-show="mode !== 'qrCode'" class="notice">{{ $t('login.noticeElectron') }}</div>
+      <div v-show="['phone', 'email'].includes(selectedMode.mode)" class="notice">{{
+        $t('login.noticeElectron')
+      }}</div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
 import SvgIcon from '../components/SvgIcon.vue'
 import { loginQrCodeKey, loginQrCodeCheck, getLoginStatus } from '../api/auth'
 import qrCode from 'qrcode'
 import { useDataStore } from '../store/data'
+import { useSettingsStore } from '../store/settings'
 import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
-import { setCookies } from '../utils/auth'
+import { setCookies, setCookiesWithCookie } from '../utils/auth'
+import { useI18n } from 'vue-i18n'
 import _ from 'lodash'
 
 const router = useRouter()
 const route = useRoute()
+const { theme } = storeToRefs(useSettingsStore())
+const { t } = useI18n()
 
-const mode = ref('qrCode')
+const modeList = ['phone', 'email', 'qrCode', 'cookie'] as const
+
+const loginModes = ref([
+  { mode: 'phone' as (typeof modeList)[number], selected: false, text: t('login.loginWithPhone') },
+  { mode: 'email' as (typeof modeList)[number], selected: false, text: t('login.loginWithEmail') },
+  { mode: 'qrCode' as (typeof modeList)[number], selected: false, text: t('login.loginWithQr') },
+  { mode: 'cookie' as (typeof modeList)[number], selected: true, text: t('login.loginWithCookie') }
+])
+
+const selectedMode = computed(() => loginModes.value.find((M) => M.selected)!)
+
 const processing = ref(false)
 const inputFocus = ref('')
 const countryCode = ref('+86')
@@ -125,13 +144,32 @@ const qrCodeSvg = ref('')
 const qrCodeKey = ref('')
 const qrCodeCheckInterval = ref<any>(null)
 const qrCodeInformation = ref('打开网易云音乐APP扫码登录')
+const inputCookie = ref('')
 
 const dataStore = useDataStore()
-// const likedStore = useLikedStore()
 const { user } = storeToRefs(dataStore)
-// const { playlists } = storeToRefs(likedStore)
 
-const login = () => {}
+const selectedColor = computed(() => {
+  const color = theme.value.colors.find((c) => c.selected)?.color || 'rgba(51, 94, 234, 1)'
+  const parts = color.startsWith('rgba')
+    ? color.slice(5, -1).split(',')
+    : color.slice(4, -1).split(',')
+  const r = parseInt(parts[0].trim(), 10)
+  const g = parseInt(parts[1].trim(), 10)
+  const b = parseInt(parts[2].trim(), 10)
+
+  const red = Math.min(255, Math.max(0, r)).toString(16).padStart(2, '0')
+  const green = Math.min(255, Math.max(0, g)).toString(16).padStart(2, '0')
+  const blue = Math.min(255, Math.max(0, b)).toString(16).padStart(2, '0')
+
+  return `#${red}${green}${blue}`
+})
+
+const login = () => {
+  if (selectedMode.value.mode === 'cookie') {
+    doCookieLogin()
+  }
+}
 
 const checkQrCodeLogin = () => {
   qrCodeCheckInterval.value = setInterval(() => {
@@ -155,8 +193,15 @@ const checkQrCodeLogin = () => {
   }, 3000)
 }
 
-const changeMode = (md: string) => {
-  mode.value = md
+const doCookieLogin = () => {
+  const result = { code: 200, cookie: inputCookie.value }
+  handleLoginResponse(result, true)
+}
+
+const changeMode = (md: (typeof modeList)[number]) => {
+  loginModes.value.forEach((loginMode) => {
+    loginMode.selected = loginMode.mode === md
+  })
   if (md === 'qrCode') {
     checkQrCodeLogin()
   } else {
@@ -164,13 +209,17 @@ const changeMode = (md: string) => {
   }
 }
 
-const handleLoginResponse = (data: any) => {
+const handleLoginResponse = (data: any, isCookie = false) => {
   if (!data) {
     processing.value = false
     return
   }
   if (data.code === 200) {
-    setCookies(data.cookie)
+    if (isCookie) {
+      setCookiesWithCookie(data.cookie)
+    } else {
+      setCookies(data.cookie)
+    }
     const cookie = localStorage.getItem('cookie-MUSIC_U') || ''
     getLoginStatus(cookie).then((res) => {
       _.merge(user.value, res.data.profile)
@@ -188,7 +237,7 @@ const getQrCodeKey = () => {
           width: 192,
           margin: 0,
           color: {
-            dark: '#335eea',
+            dark: selectedColor.value,
             light: '#00000000'
           },
           type: 'svg'
@@ -205,10 +254,12 @@ const getQrCodeKey = () => {
 }
 
 onMounted(() => {
-  if (['phone', 'email', 'qrCode'].includes(route.query.mode as string)) {
-    mode.value = route.query.mode as string
+  if (['phone', 'email', 'qrCode', 'cookie'].includes(route.query.mode as string)) {
+    loginModes.value.forEach((M) => {
+      M.selected = M.mode === (route.query.mode as 'qrCode' | 'phone' | 'email' | 'cookie')
+    })
   }
-  if (mode.value === 'qrCode') getQrCodeKey()
+  if (selectedMode.value.mode === 'qrCode') getQrCodeKey()
 })
 onBeforeUnmount(() => {
   clearInterval(qrCodeCheckInterval.value)
@@ -270,6 +321,11 @@ onBeforeUnmount(() => {
     width: 300px;
   }
 
+  .text-container {
+    height: 108px !important;
+    box-sizing: border-box;
+  }
+
   .svg-icon {
     height: 18px;
     width: 18px;
@@ -292,6 +348,29 @@ onBeforeUnmount(() => {
     color: var(--color-text);
   }
 
+  .cookie-input {
+    font-size: 16px;
+    border: none;
+    background: transparent;
+    width: 100%;
+    height: 100%;
+    font-weight: 600;
+    margin-top: -1px;
+    color: var(--color-text);
+    box-sizing: border-box;
+    resize: none;
+    border: none;
+    outline: none;
+    border-radius: 8px 0 0 8px;
+    padding: 12px 20px;
+    scrollbar-width: none;
+  }
+
+  .cookie-input::placeholder {
+    color: var(--color-text);
+    opacity: 0.38;
+    font-size: 20px;
+  }
   input::placeholder {
     color: var(--color-text);
     opacity: 0.38;
@@ -341,6 +420,11 @@ onBeforeUnmount(() => {
   opacity: 0.68;
   a {
     padding: 0 8px;
+    border-right: 2px solid var(--color-text);
+
+    &:last-child {
+      border-right: 0;
+    }
   }
 }
 

@@ -10,7 +10,8 @@ export interface MprisImpl {
   setRepeatMode: (repeat: string) => void
   setShuffleMode: (isShuffle: boolean) => void
   setMetadata: (metadata: any) => void
-  setPosition: (position: number) => void
+  setPosition: (data: { progress: number }) => void
+  setRate: (rdata: { rate: number }) => void
   setPersonalFM: (value: boolean) => void
 }
 
@@ -81,19 +82,33 @@ class Mpris implements MprisImpl {
       'xesam:title': metadata.title,
       'xesam:artist': metadata.artist.split(','),
       'xesam:album': metadata.album,
-      'xesam:url': metadata.url
+      'xesam:url': metadata.url,
+      'xesam:asText': metadata.asText,
+      'xesam:lyricOffset': metadata.lyricOffset
     }
+    this._player.rate = metadata.rate
+    this._player.seeked(metadata.progress * 1000 * 1000)
+    this._player.getPosition = () => metadata.progress * 1000 * 1000
   }
 
   setPersonalFM(value: boolean) {
     isPersonalFM = value
   }
 
-  setPosition(position: number) {
-    this._player.getPosition = () => position * 1000 * 1000
+  setRate(data: { rate: number }) {
+    this._player.rate = data.rate
+  }
+
+  setPosition(data: { progress: number }) {
+    this._player.seeked(data.progress * 1000 * 1000)
+    this._player.getPosition = () => data.progress * 1000 * 1000
+    this._player.position = data.progress * 1000 * 1000
   }
 }
 
-export function createMpris(win: BrowserWindow) {
-  return new Mpris(win)
+export async function createMpris(win: BrowserWindow): Promise<MprisImpl> {
+  const mprisInstance = new Mpris(win)
+  await new Promise((resolve) => setImmediate(resolve))
+
+  return mprisInstance
 }

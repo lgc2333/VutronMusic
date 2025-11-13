@@ -22,7 +22,7 @@
           离线歌单 {{ user.nickname ? `by ${user.nickname}` : `` }}
         </div>
         <div v-else-if="playlistType === 'stream'" class="artist">
-          流媒体歌单 by {{ playlist.creator.nickname }}
+          {{ currentService + ' 歌单 by ' + playlist.creator.nickname }}
         </div>
         <div v-else class="artist">
           歌单 by
@@ -99,8 +99,8 @@
           :icon-class="playlist.subscribed ? 'heart-solid' : 'heart'"
           :icon-button="true"
           :horizontal-padding="0"
-          :color="playlist.subscribed ? 'blue' : 'grey'"
-          :text-color="playlist.subscribed ? '#335eea' : ''"
+          :color="playlist.subscribed ? 'var(--color-primary)' : 'grey'"
+          :text-color="playlist.subscribed ? 'var(--color-primary)' : ''"
           :background-color="playlist.subscribed ? 'var(--color-secondary-bg)' : ''"
           @click="likePlaylist"
         >
@@ -110,8 +110,8 @@
     </div>
 
     <div v-if="isLikedSongsPage" class="special-playlist">
-      <div v-show="$route.name === 'likedSongs'" class="title gradient-green">我喜欢的音乐</div>
-      <div v-show="$route.name === 'streamLikedSongs'" class="title gradient-sky-blue"
+      <div v-show="playlistType === 'online'" class="title gradient-green">我喜欢的音乐</div>
+      <div v-show="playlistType === 'streamLiked'" class="title gradient-sky-blue"
         >我收藏的流媒体</div
       >
       <div class="buttons">
@@ -119,7 +119,7 @@
           {{ $t('common.play') }}
         </ButtonTwoTone>
         <ButtonTwoTone
-          v-if="$route.name === 'likedSongs'"
+          v-if="playlistType === 'online'"
           class="play-button"
           icon-class="play"
           color="grey"
@@ -127,7 +127,7 @@
           >心动模式</ButtonTwoTone
         >
         <ButtonTwoTone
-          v-if="$route.name === 'likedSongs'"
+          v-if="playlistType === 'online'"
           color="grey"
           icon-class="floor-comment"
           @click="openComment"
@@ -143,7 +143,9 @@
         :id="playlist?.id"
         :items="filterTracks"
         :type="typeMap[playlistType]"
+        :group-by="currentService"
         :colunm-number="1"
+        :show-service="['stream', 'streamLiked'].includes(playlistType)"
         :show-position="true"
         :load-more="loadMore"
         :extra-context-menu-item="isUserOwnPlaylist ? ['removeTrackFromPlaylist'] : []"
@@ -188,7 +190,7 @@
 import { computed, ref, provide, onMounted } from 'vue'
 import { useDataStore } from '../store/data'
 import { Playlist, useLocalMusicStore, Track } from '../store/localMusic'
-import { useStreamMusicStore, StreamPlaylist } from '../store/streamingMusic'
+import { useStreamMusicStore, StreamPlaylist, serviceName } from '../store/streamingMusic'
 import { useNormalStateStore } from '../store/state'
 import { usePlayerStore } from '../store/player'
 import { storeToRefs } from 'pinia'
@@ -212,6 +214,7 @@ import {
   intelligencePlaylist,
   deletePlaylist
 } from '../api/playlist'
+import _ from 'lodash'
 
 const specialPlaylist = {
   2829816518: {
@@ -323,6 +326,7 @@ const lastLoadedTrackIndex = ref(9)
 const showFullDescription = ref(false)
 const showComment = ref(false)
 const pSearchBoxRef = ref<InstanceType<typeof SearchBox>>()
+const currentService = ref<serviceName | 'all'>('all')
 
 const { user, likedSongPlaylistID } = storeToRefs(useDataStore())
 const listType = computed(() => route.name!.toString())
@@ -401,14 +405,16 @@ const loadLocalData = (id: number) => {
 }
 
 const loadStreamData = (id: string) => {
-  playlist.value = streamMusic.playlists.find((p) => p.id === id) as StreamPlaylist
+  playlist.value = streamMusic.playlists[currentService.value].find(
+    (p) => p.id === id
+  ) as StreamPlaylist
   if (!playlist.value) {
     router.go(-1)
     return
   }
   const trackIDs = playlist.value.trackIds
   tracks.value = trackIDs
-    .map((id) => streamMusic.streamTracks.find((item) => item.id === id))
+    .map((id) => streamMusic.streamTracks[currentService.value].find((item) => item.id === id))
     .map((track) => {
       if (!playlist.value.trackItemIds) return track
       return { ...track, playlistItemId: playlist.value.trackItemIds[track.id] }
@@ -418,7 +424,10 @@ const loadStreamData = (id: string) => {
 }
 
 const loadStreamLiked = () => {
-  tracks.value = streamMusic.streamLikedTracks
+  tracks.value =
+    currentService.value === 'all'
+      ? _.flatten(Object.values(streamMusic.streamLikedTracks))
+      : streamMusic.streamLikedTracks[currentService.value]
   tricklingProgress.done()
   show.value = true
 }
@@ -529,7 +538,10 @@ const deleteAPlaylist = () => {
       })
     } else if (playlistType.value === 'stream') {
       window.mainApi
-        .invoke('deleteStreamPlaylist', { id: playlist.value.id, platform: streamMusic.select })
+        ?.invoke('deleteStreamPlaylist', {
+          id: playlist.value.id,
+          platform: currentService.value
+        })
         .then((result: boolean) => {
           if (result) {
             show.value = false
@@ -595,8 +607,11 @@ onMounted(() => {
   if (playlistType.value === 'local') {
     loadLocalData(Number(route.params.id))
   } else if (playlistType.value === 'stream') {
-    loadStreamData(route.params.id as string)
+    currentService.value = route.params.service as serviceName
+    const id = route.params.id as string
+    loadStreamData(id)
   } else if (route.name === 'streamLikedSongs') {
+    currentService.value = route.params.service as serviceName | 'all'
     loadStreamLiked()
   } else if (route.name === 'likedSongs') {
     loadData(likedSongPlaylistID.value)
@@ -610,9 +625,6 @@ onMounted(() => {
 </script>
 
 <style lang="scss" scoped>
-.playlist {
-  margin-top: 32px;
-}
 .playlist-info {
   display: flex;
   margin-bottom: 72px;
@@ -685,8 +697,7 @@ onMounted(() => {
 }
 
 .special-playlist {
-  margin-top: 192px;
-  margin-bottom: 128px;
+  padding: 192px 0 128px 0;
   border-radius: 1.25em;
   text-align: center;
 
@@ -721,11 +732,6 @@ onMounted(() => {
     animation-name: letterSpacing4;
     -webkit-text-fill-color: transparent;
     background-clip: text;
-    // background-image: linear-gradient(
-    //   225deg,
-    //   var(--color-primary),
-    //   var(--color-primary)
-    // );
 
     img {
       height: 78px;
@@ -798,7 +804,8 @@ onMounted(() => {
 }
 
 .gradient-fog {
-  background: linear-gradient(-180deg, #bcc5ce 0%, #929ead 98%),
+  background:
+    linear-gradient(-180deg, #bcc5ce 0%, #929ead 98%),
     radial-gradient(at top left, rgba(255, 255, 255, 0.3) 0%, rgba(0, 0, 0, 0.3) 100%);
   background-blend-mode: screen;
 }

@@ -2,10 +2,10 @@ import { app, Menu, BrowserWindow, ipcMain } from 'electron'
 import store from './store'
 
 let isPlaying = false
-let enableOSD = false
-let isLock = false
+let enableOSD = store.get('osdWin.show') as boolean
+let isLock = (store.get('osdWin.isLock') as boolean) || false
 
-export function createDockMenu(win: BrowserWindow) {
+export const createDockMenu = (win: BrowserWindow) => {
   const lang = store.get('settings.lang') as string
 
   const updateDockMenu = (language: string) => {
